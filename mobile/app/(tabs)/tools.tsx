@@ -42,6 +42,7 @@ export default function ToolsScreen() {
       return { measurements, sessions, water };
     },
     [member?.id],
+    "tools",
   );
 
   const latest = state.data?.measurements[0] ?? null;

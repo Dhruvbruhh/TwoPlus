@@ -62,6 +62,7 @@ export default function ProfileScreen() {
       return { org, memberships, payments, attendance, measurements };
     },
     [member?.id, member?.organization_id],
+    "profile",
   );
 
   const spend = useMemo(

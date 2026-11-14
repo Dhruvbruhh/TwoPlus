@@ -67,6 +67,7 @@ export default function HomeScreen() {
       return { org, memberships, attendance, plan, classes, bookings, measurements, sessions, water };
     },
     [member?.id, member?.organization_id],
+    "home",
   );
 
   const view = useMemo(() => {

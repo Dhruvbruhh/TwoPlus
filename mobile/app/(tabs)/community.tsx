@@ -45,6 +45,7 @@ export default function CommunityScreen() {
       return { notifications, org, classes, attendance };
     },
     [member?.id, member?.organization_id, session?.user.id],
+    "community",
   );
 
   const { unread, recent } = useMemo(() => {

@@ -50,6 +50,7 @@ export default function CoachScreen() {
       return { trainer, plan, diet, measurements };
     },
     [member?.id, member?.trainer_id],
+    "coach",
   );
 
   const latest = state.data?.measurements[0] ?? null;
