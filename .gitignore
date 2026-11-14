@@ -63,3 +63,6 @@ SHA256SUMS
 
 # Agent skill scratch: installed per-machine, not part of the app.
 .agents/skills/
+
+# SkillSpector scan output. Regenerate with the /skillspector command.
+.skillspector/

@@ -106,6 +106,41 @@ tool that produces the release binary to clear a dev-time DoS is the wrong trade
 so it is left and recorded. This will clear itself when upstream publishes a
 release on the patched `glob`.
 
+## Agent skills
+
+Skills run with full agent permissions, so they get scanned before they are
+kept. Tool: [NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector)
+2.12.0, installed on the dev machine only
+(`uv tool install git+https://github.com/NVIDIA/skillspector.git`), never added
+to `package.json`.
+
+```bash
+skillspector scan .agents/skills/<name> --no-llm --format json > .skillspector/reports/<name>.json
+```
+
+`--output` is rejected on Windows (the CLI refuses to open files safely there),
+so stdout is redirected instead. `.skillspector/` is gitignored.
+
+`--no-llm` every time: LLM analysis would send skill content to a third-party
+endpoint for a scan of static markdown.
+
+| Skill | Score | Verdict | What the findings actually are |
+| --- | --- | --- | --- |
+| `supabase-postgres-best-practices` | 0 | **SAFE** | Nothing. |
+| `skill-inspector` | 0 | **SAFE** | Nothing. |
+| `supabase` | 64 | **CAUTION** | 10x `PE3` credential access and 1x `PE1` (`permissions:*`). Every hit is prose telling you *not* to leak keys: "recommend scoped personal access tokens", "never expose the `service_role` key". One `AS2` for the phrase `.mcp.json` in a troubleshooting step, one `EA2` for "a fix without verification is incomplete". No code, no scripts. |
+| `accessibility` | 68 | **CAUTION** | 9x `AE1` incomplete-artifact (the scanner's own bounded parser giving up inside `references/A11Y-PATTERNS.md`), 1x `P2` hidden instructions for the literal comment `<!-- With instructions -->` in an HTML form example, 1x `RP1` for `npx lighthouse`. All false positives. |
+| `playwright-best-practices` | 100 | **CAUTION** | 238x `RP1` "MCP server referenced without pinned version" for `npx playwright`, `npx prisma`, `npx ng` in *test examples*; 121x `AE1`; 13 analyzers self-reported as degraded. Plus `P3`/`P6`/`E1`/`RA2` hits that are all ordinary test code (a browser-extension `sendMessage`, a Mailinator poll, `storageState` reuse). 59 markdown files, zero scripts, zero executables. |
+
+Verdicts follow `.agents/skills/skill-inspector/SKILL.md`: a score alone is not
+a verdict. Every HIGH was opened at its source line. Nothing in these five
+skills executes anything, reads credentials, or writes outside its own
+directory, so all five are kept. The `CAUTION` labels record that the score is
+driven by prose that *warns about* the thing it is scored for.
+
+`skill-inspector` is itself the review rubric; the slash command wrapping the
+scanner is `.opencode/commands/skillspector.md`.
+
 ## What these scans cannot tell you
 
 - Nothing about the RLS policies. `scripts/rls-audit.mjs` covers the static half

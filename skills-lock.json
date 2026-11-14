@@ -1,83 +1,118 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": {
     "60fps-animation": {
       "source": "iart-ai/web-animation-skills",
       "sourceType": "github",
       "skillPath": "skills/60fps-animation/SKILL.md",
-      "computedHash": "3750e18ec8049d581f94f0f49a5204bc0b3ba2a6f9c5fcc4e3c1b08757143a46"
+      "computedHash": "3783bf5371256b4a496fb3a3ee3e345a66887dc9141091b49984e47bad822811"
+    },
+    "accessibility": {
+      "source": "addyosmani/web-quality-skills",
+      "sourceType": "github",
+      "skillPath": "skills/accessibility/SKILL.md",
+      "computedHash": "c668809f5df57feb87cc06f1bc37fb340d1d92e26bacb6edbeab9258d22e76a5",
+      "installMode": "copy"
     },
     "accessible-animation": {
       "source": "iart-ai/web-animation-skills",
       "sourceType": "github",
       "skillPath": "skills/accessible-animation/SKILL.md",
-      "computedHash": "95904f741088363b8073d5399600107becd24f23cf81920d4b00a368a7d78d99"
+      "computedHash": "396a43fbb461daa4cb93a2795910459ae96c82937f965906b2b84f2703aef76c"
     },
     "ascii-animation": {
       "source": "iart-ai/web-animation-skills",
       "sourceType": "github",
       "skillPath": "skills/ascii-animation/SKILL.md",
-      "computedHash": "0e4fa3f778c41e372cdcc1895fb206d0886c4fd5de221f69bfd12788920e8e3a"
+      "computedHash": "b8b5f56046c43c82c3300d46c4295014c590bc340cb9351cfbe89f41f0a8f2b7"
     },
     "design-taste-frontend": {
       "source": "Leonxlnx/taste-skill",
       "sourceType": "github",
       "skillPath": "skills/taste-skill/SKILL.md",
-      "computedHash": "53590ee9325bee34d7888bf0d81bd3941a108b1e7850df46802d93104e3f2b90"
+      "computedHash": "0094b3a70572d65b2c534ff811a780ae044621aac7a791ec6f70874c0a02f3d8"
     },
     "glassmorphism": {
       "source": "iart-ai/web-animation-skills",
       "sourceType": "github",
       "skillPath": "skills/glassmorphism/SKILL.md",
-      "computedHash": "c4324b3381b3252afb6644a4ad12facc2226d51a47778fa7f1bb6a1cb800cc2b"
+      "computedHash": "52c31c76c1ce3c52485ed43c3dc36796c833972a0f916215392c2b611209a2dc"
     },
     "gsap-web": {
       "source": "iart-ai/web-animation-skills",
       "sourceType": "github",
       "skillPath": "skills/gsap-web/SKILL.md",
-      "computedHash": "d32db5fd4c702ca088dd5360da6410f430db1a31885212d6b4b6e265c1ee966e"
+      "computedHash": "acd6638268c8bf2d9b0eb935472659dfbc0f072a5237d486e462235b32045177"
     },
     "hallmark": {
       "source": "nutlope/hallmark",
       "sourceType": "github",
       "skillPath": "skills/hallmark/SKILL.md",
-      "computedHash": "a7e0f104af7f03882ac018f89f49185ed772742772f2cc96bb0e7e0dac0dd6a0"
+      "computedHash": "8af518d4e8f42ca9f6c373ac0deda7743661dc6c668d8bb52dabb7a31817319f"
     },
     "improve-animations": {
       "source": "emilkowalski/skills",
       "sourceType": "github",
       "skillPath": "skills/improve-animations/SKILL.md",
-      "computedHash": "b913ec7ef2b1aa900060eb6e5dbdccc94b6ea631059ec3474c4b61e2ffefeeb4"
+      "computedHash": "59a9e59e5c4dee0ee2adc9f3fe5663f5f22e0f96fdae5f727812f84c0ae89c54"
     },
     "lottie-animation": {
       "source": "iart-ai/web-animation-skills",
       "sourceType": "github",
       "skillPath": "skills/lottie-animation/SKILL.md",
-      "computedHash": "d9b5d4c44af9fe24f1479cfee035cf65b816f22443d25a5631d0c3f430462619"
+      "computedHash": "1d3c9dac2ff3e7e54f1fb5a622ed5667992efab37966256a1906276d86b254b9"
     },
     "micro-interaction": {
       "source": "iart-ai/web-animation-skills",
       "sourceType": "github",
       "skillPath": "skills/micro-interaction/SKILL.md",
-      "computedHash": "5da171547f62f04a7c243607f276f8b4d1a8a449150ca5eb1c00aeb6cd15ece4"
+      "computedHash": "35fe04bed325e1f7cdbf7d25e7327f33b868b854a999eaa0d523a0899331d071"
     },
     "page-transition-animation": {
       "source": "iart-ai/web-animation-skills",
       "sourceType": "github",
       "skillPath": "skills/page-transition-animation/SKILL.md",
-      "computedHash": "2ca70040f86cc93643877b9cc1fe16653908b9729e87f5711fd6e74e62a789f4"
+      "computedHash": "23248658c4bbae44a1a11a66a350dffd2cb97a20ebca20dca9369ec63365ef78"
+    },
+    "playwright-best-practices": {
+      "source": "currents-dev/playwright-best-practices-skill",
+      "sourceType": "github",
+      "skillPath": "playwright-best-practices/SKILL.md",
+      "computedHash": "111e9d3e9d63dea34814120fb6583c0b28ee45371662801d8e8d8bdf4b05dcb0",
+      "installMode": "copy"
+    },
+    "skill-inspector": {
+      "source": "NVIDIA/SkillSpector",
+      "sourceType": "github",
+      "skillPath": "skills/skill-inspector/SKILL.md",
+      "computedHash": "5056fb112425b322e3fddbf6572c1c3d23650a1a9025515eabe865f16f865bd9",
+      "installMode": "copy"
+    },
+    "supabase": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/supabase/SKILL.md",
+      "computedHash": "2fbff32fd63b7d31585cacf0ed43e5bf8d05dd20d6c0c751d256cb967a00eec1",
+      "installMode": "copy"
+    },
+    "supabase-postgres-best-practices": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/supabase-postgres-best-practices/SKILL.md",
+      "computedHash": "3eb972c2d7c818e544e35cc33ea8d7147d4d78ae08142ef40037b0fbac7a2505",
+      "installMode": "copy"
     },
     "svg-animation": {
       "source": "iart-ai/web-animation-skills",
       "sourceType": "github",
       "skillPath": "skills/svg-animation/SKILL.md",
-      "computedHash": "34619073e227bfb7c4c1daa2487006e7b759116f8f88ec9cde5c2dd0a11dfb96"
+      "computedHash": "cfcf1a801009db1ee4d5141c749acbf6c5eff23534610c4ac3c87c16580809df"
     },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/react-best-practices/SKILL.md",
-      "computedHash": "3219a1944e404ffc14d1d9d6aef6dd2e3855b81387ee0a044ccbfe14d34c2357"
+      "computedHash": "7991ed4fbecdac23f47c1a40c243e00a212a9e7f3604db93959b3ae11dffe299"
     }
   }
 }
