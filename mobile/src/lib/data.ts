@@ -465,6 +465,64 @@ export async function addMeasurement(input: {
   return row;
 }
 
+/**
+ * Save a tracked run as a real workout session.
+ *
+ * The run gets the day's null-assignment slot: when the member also trained a
+ * plan today, that session carries the assignment id and this one does not,
+ * so the unique index on (member, day, coalesce(assignment)) accepts both.
+ * A second run the same day extends the first instead of failing the index.
+ */
+export async function saveRun(input: {
+  memberId: string;
+  organizationId: string;
+  durationMinutes: number;
+  note: string;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const existing = await many<WorkoutSession & { note: string | null }>(
+    supabase
+      .from("workout_sessions")
+      .select("id, performed_on, duration_minutes, note, completed_at, plan_id")
+      .eq("member_id", input.memberId)
+      .eq("performed_on", today)
+      .is("assignment_id", null)
+      .limit(1),
+  );
+  if (existing[0]) {
+    const prev = existing[0];
+    const duration = Math.min(
+      1440,
+      (prev.duration_minutes ?? 0) + Math.max(0, Math.round(input.durationMinutes)),
+    );
+    const note = [prev.note, input.note].filter(Boolean).join("\n").slice(0, 2000);
+    const { error } = await supabase
+      .from("workout_sessions")
+      .update({ duration_minutes: duration, note, completed_at: new Date().toISOString() })
+      .eq("id", prev.id);
+    if (error) throw new Error(error.message);
+    return prev.id;
+  }
+
+  const row = await one<{ id: string }>(
+    supabase
+      .from("workout_sessions")
+      .insert({
+        member_id: input.memberId,
+        organization_id: input.organizationId,
+        assignment_id: null,
+        performed_on: today,
+        duration_minutes: Math.max(0, Math.min(1440, Math.round(input.durationMinutes))),
+        note: input.note.slice(0, 2000),
+        completed_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single(),
+  );
+  if (!row) throw new Error("Could not save the run.");
+  return row.id;
+}
+
 /** Latest measurement is the baseline for BMI and trend arrows. */
 export function bmiOf(weightKg: number | null, heightCm: number | null) {
   if (!weightKg || !heightCm) return null;

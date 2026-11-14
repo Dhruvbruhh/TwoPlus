@@ -416,6 +416,30 @@ export default function HomeScreen() {
             />
           )}
 
+          {/* Outdoor run: GPS tracking, saved as a real session. */}
+          <Card onPress={() => router.push("/run")} accessibilityLabel="Start a tracked outdoor run">
+            <Row style={{ justifyContent: "space-between" }}>
+              <View style={{ flex: 1, paddingRight: space.md }}>
+                <T variant="bodyStrong">Outdoor run</T>
+                <T variant="small" tone="muted" style={{ marginTop: 2 }}>
+                  Track distance, time and pace with GPS
+                </T>
+              </View>
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: radius.pill,
+                  backgroundColor: color.accentSoft,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="walk-outline" size={19} color={color.accentText} />
+              </View>
+            </Row>
+          </Card>
+
           {/* Next class. */}
           {view?.nextClass ? (
             <>
