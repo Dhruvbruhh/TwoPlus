@@ -1,16 +1,17 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Pressable, View } from "react-native";
+import { Alert, Pressable, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
 import { useAsync } from "../../src/lib/useAsync";
 import {
+  addMeasurement,
   getAttendance,
   getMeasurements,
   getMemberships,
   getPayments,
   getOrg,
-  bmiOf,
   formatMoney,
+  type Measurement,
 } from "../../src/lib/data";
 import { humanise, initials, shortDate, streakFrom } from "../../src/lib/format";
 import {
@@ -21,6 +22,7 @@ import {
   EmptyState,
   Row,
   Screen,
+  SectionHeader,
   Skeleton,
   Stat,
   T,
@@ -260,65 +262,14 @@ export default function ProfileScreen() {
             body="Check in at the desk and your visits will build up here."
           />
         )
-      ) : state.data?.measurements.length ? (
-        <>
-          <Card>
-            <Row gap={space.lg}>
-              <Stat
-                label="Weight"
-                value={
-                  state.data.measurements[0].weight_kg != null
-                    ? String(Number(state.data.measurements[0].weight_kg))
-                    : "—"
-                }
-                unit="kg"
-              />
-              <Stat
-                label="BMI"
-                value={
-                  bmiOf(state.data.measurements[0].weight_kg, state.data.measurements[0].height_cm)?.toFixed(1) ?? "—"
-                }
-              />
-              <Stat
-                label="Body fat"
-                value={
-                  state.data.measurements[0].body_fat_pct != null
-                    ? String(Number(state.data.measurements[0].body_fat_pct))
-                    : "—"
-                }
-                unit="%"
-              />
-            </Row>
-          </Card>
-          {state.data.measurements.map((m) => (
-            <Card key={m.id}>
-              <Row style={{ justifyContent: "space-between" }}>
-                <T variant="small">{shortDate(m.measured_on)}</T>
-                <T variant="caption" tone="faint">
-                  {[
-                    m.weight_kg != null ? `${Number(m.weight_kg)} kg` : null,
-                    m.waist_cm != null ? `waist ${Number(m.waist_cm)}` : null,
-                    m.body_fat_pct != null ? `${Number(m.body_fat_pct)}% fat` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </T>
-              </Row>
-              {m.notes ? (
-                <T variant="caption" tone="muted" style={{ marginTop: space.sm }}>
-                  {m.notes}
-                </T>
-              ) : null}
-            </Card>
-          ))}
-        </>
-      ) : (
-        <EmptyState
-          icon="body-outline"
-          title="No measurements yet"
-          body="Weight, body fat and measurements recorded at check-in appear here."
+      ) : pane === "body" ? (
+        <BodyPane
+          measurements={state.data?.measurements ?? []}
+          memberId={member?.id ?? ""}
+          organizationId={member?.organization_id ?? ""}
+          onSaved={() => void state.refresh()}
         />
-      )}
+      ) : null}
 
       <View style={{ marginTop: space.md }}>
         <Button label="Sign out" variant="secondary" icon="log-out-outline" onPress={confirmSignOut} />
@@ -327,5 +278,135 @@ export default function ProfileScreen() {
         </T>
       </View>
     </Screen>
+  );
+}
+
+/**
+ * The Body pane: a self-service weight check-in plus the gym's history.
+ * Migration 0015 grants members insert/update on their own measurement rows,
+ * so this writes directly; every other field stays coach/desk-owned.
+ */
+function BodyPane({
+  measurements,
+  memberId,
+  organizationId,
+  onSaved,
+}: {
+  measurements: Measurement[];
+  memberId: string;
+  organizationId: string;
+  onSaved: () => void;
+}) {
+  const latest = measurements[0] ?? null;
+  const previous = measurements[1] ?? null;
+  const delta =
+    latest?.weight_kg != null && previous?.weight_kg != null
+      ? Number(latest.weight_kg) - Number(previous.weight_kg)
+      : null;
+
+  const [weight, setWeight] = useState(latest?.weight_kg != null ? String(Number(latest.weight_kg)) : "");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    const w = Number(weight);
+    if (!Number.isFinite(w) || w < 20 || w > 400) {
+      setErr("Enter a weight between 20 and 400 kg.");
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      await addMeasurement({
+        memberId,
+        organizationId,
+        weightKg: w,
+        heightCm: latest?.height_cm ?? null,
+      });
+      setMsg("Check-in saved.");
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not save the check-in.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <Card>
+        <Row style={{ justifyContent: "space-between" }}>
+          <View>
+            <T variant="caption" tone="faint">LATEST WEIGHT</T>
+            <T variant="h2">
+              {latest?.weight_kg != null ? `${Number(latest.weight_kg)} kg` : "—"}
+            </T>
+          </View>
+          {delta != null && Math.abs(delta) >= 0.1 ? (
+            <Chip
+              label={`${delta > 0 ? "+" : ""}${delta.toFixed(1)} kg`}
+              tone={delta < 0 ? "success" : "warning"}
+            />
+          ) : null}
+        </Row>
+        {latest ? (
+          <T variant="caption" tone="faint" style={{ marginTop: space.sm }}>
+            Measured {shortDate(latest.measured_on)}
+            {latest.body_fat_pct != null ? ` · ${Number(latest.body_fat_pct)}% fat` : ""}
+          </T>
+        ) : null}
+
+        <Row gap={space.sm} style={{ marginTop: space.lg }}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <T variant="caption" tone="faint">WEIGHT TODAY (KG)</T>
+            <TextInput
+              value={weight}
+              onChangeText={setWeight}
+              keyboardType="decimal-pad"
+              selectTextOnFocus
+              style={{
+                minHeight: 48,
+                borderRadius: radius.md,
+                borderWidth: 1,
+                borderColor: color.line,
+                backgroundColor: color.surface,
+                paddingHorizontal: space.md,
+                color: color.text,
+              }}
+            />
+          </View>
+          <View style={{ justifyContent: "flex-end", width: 120 }}>
+            <Button label={saving ? "Saving…" : "Check in"} compact loading={saving} onPress={() => void save()} />
+          </View>
+        </Row>
+        {msg ? <T variant="caption" tone="success" style={{ marginTop: space.sm }}>{msg}</T> : null}
+        {err ? <T variant="caption" tone="danger" style={{ marginTop: space.sm }}>{err}</T> : null}
+      </Card>
+
+      {measurements.length > 1 ? (
+        <>
+          <SectionHeader title="History" />
+          {measurements.slice(1, 12).map((m) => (
+            <Card key={m.id}>
+              <Row style={{ justifyContent: "space-between" }}>
+                <T variant="small">{shortDate(m.measured_on)}</T>
+                <T variant="caption" tone="faint">
+                  {m.weight_kg != null ? `${Number(m.weight_kg)} kg` : "—"}
+                </T>
+              </Row>
+            </Card>
+          ))}
+        </>
+      ) : null}
+      {measurements.length === 0 ? (
+        <EmptyState
+          icon="body-outline"
+          title="No measurements yet"
+          body="Log your first weight above; anything your coach records will appear here too."
+        />
+      ) : null}
+    </>
   );
 }

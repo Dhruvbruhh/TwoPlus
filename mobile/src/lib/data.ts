@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
 
 /**
@@ -405,6 +406,63 @@ export async function getNotifications(userId: string) {
 export async function getTrainer(trainerId: string | null) {
   if (!trainerId) return null;
   return one<Staff>(supabase.from("staff").select("id, name, job_role, phone, email").eq("id", trainerId).maybeSingle());
+}
+
+/**
+ * Local water log. Kept on-device: hydration is personal, per-tap data with no
+ * reporting or CRM use, so it does not justify a server table. AsyncStorage
+ * keeps yesterday's and today's totals across restarts; the key holds one
+ * JSON object of `YYYY-MM-DD -> ml`.
+ */
+export async function getWaterLog(): Promise<Record<string, number>> {
+  try {
+    const raw = await AsyncStorage.getItem("twoplus.water");
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function addWater(ml: number, day = new Date().toISOString().slice(0, 10)) {
+  const log = await getWaterLog();
+  log[day] = Math.max(0, (log[day] ?? 0) + ml);
+  await AsyncStorage.setItem("twoplus.water", JSON.stringify(log));
+  return log[day];
+}
+
+export async function getWaterToday() {
+  return (await getWaterLog())[new Date().toISOString().slice(0, 10)] ?? 0;
+}
+
+/**
+ * Self-service measurements. Migration 0015 grants members insert/update on
+ * their own rows, so weight check-ins work without the front desk.
+ */
+export async function addMeasurement(input: {
+  memberId: string;
+  organizationId: string;
+  weightKg: number;
+  heightCm?: number | null;
+  notes?: string;
+}) {
+  const row = await one<Measurement>(
+    supabase
+      .from("fitness_measurements")
+      .insert({
+        member_id: input.memberId,
+        organization_id: input.organizationId,
+        measured_on: new Date().toISOString().slice(0, 10),
+        weight_kg: input.weightKg,
+        height_cm: input.heightCm ?? null,
+        notes: input.notes?.slice(0, 500) ?? null,
+      })
+      .select(
+        "id, measured_on, weight_kg, height_cm, body_fat_pct, chest_cm, waist_cm, hips_cm, arms_cm, thighs_cm, notes",
+      )
+      .single(),
+  );
+  if (!row) throw new Error("Could not save the check-in.");
+  return row;
 }
 
 /** Latest measurement is the baseline for BMI and trend arrows. */

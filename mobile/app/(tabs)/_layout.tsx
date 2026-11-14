@@ -100,6 +100,15 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="tools"
+        options={{
+          title: "Tools",
+          tabBarIcon: ({ focused }) => (
+            <Ionicons name={focused ? "calculator" : "calculator-outline"} size={21} color={focused ? color.accentText : color.textFaint} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

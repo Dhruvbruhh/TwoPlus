@@ -1,27 +1,33 @@
 import React, { useMemo } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
 import { useAsync } from "../../src/lib/useAsync";
 import {
+  addWater,
   getActiveWorkoutPlan,
   getAttendance,
   getMeasurements,
   getMemberships,
   getMyBookings,
   getOrg,
+  getRecentSessions,
   getUpcomingClasses,
+  getWaterLog,
   bmiOf,
   formatMoney,
 } from "../../src/lib/data";
 import { clockTime, daysLeft, greeting, shortDate, streakFrom } from "../../src/lib/format";
+import { dailyMissions, progressionFrom, XP_SESSION, XP_VISIT } from "../../src/lib/progression";
+import { waterTargetMl } from "../../src/lib/fitness";
 import {
   Button,
   Card,
   Chip,
   EmptyState,
+  ProgressBar,
   Row,
   Screen,
   SectionHeader,
@@ -34,7 +40,9 @@ import { tabBarSpace } from "./_layout";
 
 /**
  * Home answers three questions before the member taps anything: is my
- * membership live, am I on a streak, and what am I training today.
+ * membership live, am I on a streak, and what am I training today. The
+ * engagement layer (XP, level, missions, water) is derived from the same real
+ * records - no second source of truth, nothing farmed.
  */
 export default function HomeScreen() {
   const { member, unclaimed } = useAuth();
@@ -44,16 +52,19 @@ export default function HomeScreen() {
   const state = useAsync(
     async () => {
       if (!member) return null;
-      const [org, memberships, attendance, plan, classes, bookings, measurements] = await Promise.all([
-        getOrg(member.organization_id),
-        getMemberships(member.id),
-        getAttendance(member.id, 90),
-        getActiveWorkoutPlan(member.id),
-        getUpcomingClasses(member.organization_id),
-        getMyBookings(member.id),
-        getMeasurements(member.id),
-      ]);
-      return { org, memberships, attendance, plan, classes, bookings, measurements };
+      const [org, memberships, attendance, plan, classes, bookings, measurements, sessions, water] =
+        await Promise.all([
+          getOrg(member.organization_id),
+          getMemberships(member.id),
+          getAttendance(member.id, 90),
+          getActiveWorkoutPlan(member.id),
+          getUpcomingClasses(member.organization_id),
+          getMyBookings(member.id),
+          getMeasurements(member.id),
+          getRecentSessions(member.id, 30),
+          getWaterLog(),
+        ]);
+      return { org, memberships, attendance, plan, classes, bookings, measurements, sessions, water };
     },
     [member?.id, member?.organization_id],
   );
@@ -78,6 +89,30 @@ export default function HomeScreen() {
     const bookedIds = new Set(d.bookings.filter((b) => b.status === "booked").map((b) => b.class_id));
     const nextClass = d.classes[0] ?? null;
 
+    // Engagement: derived from the same records the rest of the app uses.
+    const today = new Date().toISOString().slice(0, 10);
+    const completedDays = d.sessions
+      .filter((s) => s.completed_at != null)
+      .map((s) => s.performed_on);
+    const visitDays = d.attendance.map((a) => a.check_in.slice(0, 10));
+    const progression = progressionFrom({ completedSessionDays: completedDays, visitDays });
+    const trainedToday = completedDays.includes(today);
+    const visitedToday = visitDays.includes(today);
+    const waterToday = d.water?.[today] ?? 0;
+    const waterGoal = waterTargetMl(
+      latest?.weight_kg != null ? Number(latest.weight_kg) : null,
+      trainedToday,
+    );
+    const missions = dailyMissions({
+      hasPlan: !!d.plan,
+      trainedToday,
+      visitedToday,
+      waterMl: waterToday,
+      waterGoalMl: waterGoal,
+      mealsLoggedToday: 0,
+      mealsTarget: 0,
+    });
+
     return {
       active,
       left,
@@ -89,6 +124,11 @@ export default function HomeScreen() {
       nextClass,
       isBooked: nextClass ? bookedIds.has(nextClass.id) : false,
       exerciseCount: d.plan?.exercises.length ?? 0,
+      progression,
+      missions,
+      waterToday,
+      waterGoal,
+      trainedToday,
     };
   }, [state.data]);
 
@@ -202,6 +242,48 @@ export default function HomeScreen() {
             )}
           </Card>
 
+          {/* Level + XP ring: derived from real sessions and visits. */}
+          {view?.progression ? (
+            <Card>
+              <Row style={{ justifyContent: "space-between" }}>
+                <View style={{ flex: 1, paddingRight: space.md }}>
+                  <T variant="caption" tone="faint">
+                    {view.progression.levelName.toUpperCase()}
+                  </T>
+                  <T variant="h2">{view.progression.xp.toLocaleString()} XP</T>
+                  <T variant="caption" tone="muted" style={{ marginTop: 2 }}>
+                    {view.progression.xpToNext != null
+                      ? `${view.progression.xpToNext.toLocaleString()} XP to ${nextLevelName(view.progression.levelIndex)}`
+                      : "Top level reached"}
+                  </T>
+                  <ProgressBar
+                    progress={view.progression.levelProgress}
+                    style={{ marginTop: space.md }}
+                  />
+                </View>
+                <View style={{ alignItems: "flex-end", gap: space.sm }}>
+                  <View
+                    style={{
+                      width: 54,
+                      height: 54,
+                      borderRadius: radius.pill,
+                      backgroundColor: color.accentSoft,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <T variant="bodyStrong" tone="accent">
+                      L{view.progression.levelIndex + 1}
+                    </T>
+                  </View>
+                </View>
+                <T variant="caption" tone="faint">
+                  {XP_SESSION} XP / workout · {XP_VISIT} / visit
+                </T>
+              </Row>
+            </Card>
+          ) : null}
+
           <Card>
             <Row gap={space.lg}>
               <Stat label="Streak" value={String(view?.streak ?? 0)} unit="days" tone="accent" />
@@ -225,6 +307,67 @@ export default function HomeScreen() {
                 </T>
               </Row>
             ) : null}
+          </Card>
+
+          {/* Daily missions: optional, derived, no nagging. */}
+          {view?.missions.length ? (
+            <Card>
+              <T variant="caption" tone="faint">
+                TODAY'S MISSIONS
+              </T>
+              <View style={{ marginTop: space.md, gap: space.md }}>
+                {view.missions.map((m) => (
+                  <Row key={m.key} gap={space.sm} style={{ alignItems: "center" }}>
+                    <Ionicons
+                      name={m.done ? "checkmark-circle" : "radio-button-off"}
+                      size={20}
+                      color={m.done ? color.success : color.textFaint}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <T variant="small" tone={m.done ? "success" : "text"}>
+                        {m.label}
+                      </T>
+                      {!m.done && m.progress > 0 ? (
+                        <ProgressBar progress={m.progress} style={{ marginTop: 6 }} />
+                      ) : null}
+                    </View>
+                  </Row>
+                ))}
+              </View>
+            </Card>
+          ) : null}
+
+          {/* Water: quick add, kept on-device. */}
+          <Card>
+            <Row style={{ justifyContent: "space-between" }}>
+              <T variant="caption" tone="faint">WATER TODAY</T>
+              <T variant="caption" tone="muted">
+                {((view?.waterToday ?? 0) / 1000).toFixed(2)} / {((view?.waterGoal ?? 2000) / 1000).toFixed(1)} L
+              </T>
+            </Row>
+            <ProgressBar
+              progress={view && view.waterGoal > 0 ? Math.min(1, view.waterToday / view.waterGoal) : 0}
+              style={{ marginTop: space.md }}
+            />
+            <Row gap={space.sm} style={{ marginTop: space.md }}>
+              <Button
+                label="+250 ml"
+                variant="secondary"
+                compact
+                onPress={async () => {
+                  await addWater(250);
+                  await state.refresh();
+                }}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="+500 ml"
+                variant="secondary"
+                compact
+                onPress={async () => quickWater(500, state.refresh)}
+                style={{ flex: 1 }}
+              />
+            </Row>
           </Card>
 
           {/* Today's training. */}
@@ -315,4 +458,14 @@ export default function HomeScreen() {
       ) : null}
     </Screen>
   );
+}
+
+function nextLevelName(index: number) {
+  const names = ["Rising", "Disciplined", "Athlete", "Elite", "Champion", "Legend"];
+  return names[index] ?? "the next level";
+}
+
+async function quickWater(ml: number, refresh: () => Promise<void>) {
+  await addWater(ml);
+  await refresh();
 }

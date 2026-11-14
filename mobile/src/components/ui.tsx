@@ -414,6 +414,33 @@ export function Divider() {
   return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: color.line }} />;
 }
 
+/** 0..1 progress bar in the accent colour. No animation dependency: a width. */
+export function ProgressBar({
+  progress,
+  style,
+}: {
+  progress: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const clamped = Math.max(0, Math.min(1, progress));
+  return (
+    <View
+      style={[{ height: 6, borderRadius: radius.pill, backgroundColor: color.line, overflow: "hidden" }, style]}
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(clamped * 100) }}
+    >
+      <View
+        style={{
+          width: `${Math.round(clamped * 100)}%`,
+          height: "100%",
+          borderRadius: radius.pill,
+          backgroundColor: color.accentBright,
+        }}
+      />
+    </View>
+  );
+}
+
 export function Row({
   children,
   style,
