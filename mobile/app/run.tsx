@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Alert, Pressable, Share, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -120,6 +120,19 @@ export default function RunScreen() {
           onPress={() => router.back()}
           style={{ marginTop: space.xxl, alignSelf: "stretch", minWidth: 220 }}
         />
+        <Pressable
+          onPress={() =>
+            void Share.share({
+              message: `Just ran ${km.toFixed(2)} km in ${formatClock(seconds)}${pace ? ` at ${pace}` : ""} with TwoPlus.fit`,
+            })
+          }
+          hitSlop={12}
+          accessibilityRole="button"
+        >
+          <T variant="small" tone="muted" style={{ marginTop: space.md }}>
+            Share this run
+          </T>
+        </Pressable>
       </View>
     );
   }

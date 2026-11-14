@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Linking, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,11 +7,14 @@ import { useAsync } from "../../src/lib/useAsync";
 import {
   getActiveDietPlan,
   getActiveWorkoutPlan,
+  getAttendance,
   getMeasurements,
+  getRecentSessions,
   getTrainer,
   bmiOf,
 } from "../../src/lib/data";
-import { humanise, initials, shortDate } from "../../src/lib/format";
+import { humanise, initials, shortDate, streakFrom } from "../../src/lib/format";
+import { coachInsights } from "../../src/lib/insights";
 import {
   Button,
   Card,
@@ -41,19 +44,32 @@ export default function CoachScreen() {
   const state = useAsync(
     async () => {
       if (!member) return null;
-      const [trainer, plan, diet, measurements] = await Promise.all([
+      const [trainer, plan, diet, measurements, sessions, attendance] = await Promise.all([
         getTrainer(member.trainer_id),
         getActiveWorkoutPlan(member.id),
         getActiveDietPlan(member.id),
         getMeasurements(member.id),
+        getRecentSessions(member.id, 14),
+        getAttendance(member.id, 30),
       ]);
-      return { trainer, plan, diet, measurements };
+      return { trainer, plan, diet, measurements, sessions, attendance };
     },
     [member?.id, member?.trainer_id],
     "coach",
   );
 
   const latest = state.data?.measurements[0] ?? null;
+
+  const insights = useMemo(() => {
+    const d = state.data;
+    if (!d) return [];
+    return coachInsights({
+      weightSeries: d.measurements.map((m) => ({ measured_on: m.measured_on, weight_kg: m.weight_kg })),
+      completedSessionDays: d.sessions.filter((s) => s.completed_at != null).map((s) => s.performed_on),
+      streak: streakFrom(d.attendance.map((a) => a.check_in)),
+      hasPlan: !!d.plan,
+    });
+  }, [state.data]);
 
   return (
     <Screen
@@ -69,6 +85,26 @@ export default function CoachScreen() {
           Who is looking after your training, and what they have set.
         </T>
       </View>
+
+      {/* Insights: honest math from the member's own records, shown to
+          everyone whether or not a trainer is assigned. */}
+      {insights.length ? (
+        <Card>
+          <T variant="caption" tone="faint">
+            THIS WEEK
+          </T>
+          <View style={{ marginTop: space.md, gap: space.md }}>
+            {insights.map((i) => (
+              <Row key={i.text} gap={space.sm}>
+                <Ionicons name={i.icon} size={17} color={color.accentText} />
+                <T variant="small" style={{ flex: 1 }}>
+                  {i.text}
+                </T>
+              </Row>
+            ))}
+          </View>
+        </Card>
+      ) : null}
 
       {state.loading ? (
         <Skeleton height={160} />
