@@ -120,7 +120,7 @@ the Android shell blocks mixed content). There is no data broker or ad network.
 
 Deletion: a member can request deletion in the app (Phase 18 flow); the gym owner
 or the operator actions it. Account deletion removes the auth account and the
-member record, subject to the retention notes in `docs/PRIVACY-AND-RETENTION.md`.
+member record, subject to the retention notes in `docs/PRIVACY-LIFECYCLE.md`.
 
 ## Assets
 
