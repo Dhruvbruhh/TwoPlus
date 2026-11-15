@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Image, Pressable, View, StyleSheet } from "react-native";
+import { Image, Pressable, ScrollView, TextInput, View, StyleSheet } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,15 +20,17 @@ import { color, radius, space } from "../src/lib/theme";
  *
  * 1. Pick/capture a meal photo (native camera or library).
  * 2. If AI is configured, request analysis; otherwise say so plainly.
- * 3. Detected items are ESTIMATES: the member edits servings, adds manual
- *    items, or discards. Nothing is saved until they confirm, and nothing is
- *    fabricated when AI is unavailable - the manual path is the fallback.
+ * Detected items are estimates. Nothing is saved until the member confirms,
+ * and manual logging works even when meal analysis is unavailable.
  */
 export default function ScanScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [photo, setPhoto] = useState<string | null>(null);
   const [items, setItems] = useState<AiItem[] | null>(null);
+  const [manualItems, setManualItems] = useState<FoodItem[]>([]);
+  const [manualName, setManualName] = useState("");
+  const [manualValues, setManualValues] = useState({ calories: "", protein: "", carbs: "", fat: "" });
   const [slot, setSlot] = useState<MealEntry["slot"]>("lunch");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -39,6 +41,7 @@ export default function ScanScreen() {
       return () => {
         setPhoto(null);
         setItems(null);
+        setManualItems([]);
         setNote(null);
         setBusy(false);
       };
@@ -59,6 +62,7 @@ export default function ScanScreen() {
     if (res.canceled || !res.assets[0]) return;
     setPhoto(res.assets[0].uri);
     setItems(null);
+    setManualItems([]);
     setNote(null);
     await analyze(res.assets[0].uri);
   };
@@ -82,18 +86,34 @@ export default function ScanScreen() {
     }
   };
 
-  const draftItems: FoodItem[] = (items ?? []).map((it) => ({ ...it, servings: 1, source: "ai" as const }));
+  const draftItems: FoodItem[] = [
+    ...(items ?? []).map((it) => ({ ...it, servings: 1, source: "ai" as const })),
+    ...manualItems,
+  ];
+
+  const addManualItem = () => {
+    const values = Object.values(manualValues).map(Number);
+    if (!manualName.trim() || values.some((value) => !Number.isFinite(value) || value < 0)) return;
+    const [calories, protein_g, carbs_g, fat_g] = values;
+    setManualItems((current) => [...current, {
+      name: manualName.trim(), servings: 1, calories, protein_g, carbs_g, fat_g, source: "manual",
+    }]);
+    setManualName("");
+    setManualValues({ calories: "", protein: "", carbs: "", fat: "" });
+  };
 
   const save = async () => {
-    if (!photo || draftItems.length === 0) return;
-    const totals = totalsOf(draftItems);
+    if (!draftItems.length) return;
+    // Event handler, not render: the impurity warning is a false positive.
+    // oxlint-disable-next-line react/purity
+    const createdAt = Date.now();
     const entry: MealEntry = {
-      id: `m${Date.now()}`,
+      id: `m${createdAt}`,
       slot,
       name: draftItems.length === 1 ? draftItems[0].name : `${draftItems.length} items`,
       items: draftItems,
-      createdAt: Date.now(),
-      photoUri: photo,
+      createdAt,
+      ...(photo ? { photoUri: photo } : {}),
     };
     await addMeal(entry);
     router.back();
@@ -102,33 +122,53 @@ export default function ScanScreen() {
   const totals = totalsOf(draftItems);
 
   return (
-    <Screen scroll={false} edges={["top", "bottom"]}>
+    <Screen scroll={false} edges={["top", "bottom"]} contentStyle={{ flex: 1 }}>
       <View style={{ flex: 1, gap: space.lg }}>
         <Row style={{ justifyContent: "space-between" }}>
           <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close scanner">
             <Ionicons name="close" size={26} color={color.text} />
           </Pressable>
-          <T variant="h3">Scan meal</T>
+          <T variant="h3">Log a meal</T>
           <View style={{ width: 26 }} />
         </Row>
 
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ gap: space.lg, paddingBottom: Math.max(insets.bottom, space.md) }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         {!photo ? (
           <View style={s.stage}>
             <View style={s.lensRing}>
               <Ionicons name="restaurant-outline" size={44} color={color.textFaint} />
             </View>
             <T variant="bodyStrong" align="center">
-              Photograph your meal
+              Photograph your meal or add it manually
             </T>
             <T variant="small" tone="muted" align="center" style={{ maxWidth: 280 }}>
               {aiConfigured
-                ? "AI will estimate calories and macros. You can correct everything before saving."
-                : "AI analysis is not set up yet - you can still log the meal by hand after the photo."}
+                ? "AI estimates calories and macros. Log foods manually whenever needed."
+                : "Meal analysis is not set up yet. Log foods manually, with or without a photo."}
             </T>
             <View style={{ alignSelf: "stretch", gap: space.md, marginTop: space.md }}>
               <Button label="Open camera" icon="camera" onPress={() => void pick(true)} />
               <Button label="Choose from library" variant="secondary" icon="images-outline" onPress={() => void pick(false)} />
+              <Button label="Enter meal details" variant="ghost" icon="create-outline" onPress={() => setNote("manual-entry")} />
             </View>
+            {note === "manual-entry" ? (
+              <ManualEntry
+                name={manualName}
+                values={manualValues}
+                items={manualItems}
+                onName={setManualName}
+                onValues={setManualValues}
+                onAdd={addManualItem}
+                onSave={() => void save()}
+                onRemove={(index) => setManualItems((current) => current.filter((_, i) => i !== index))}
+                canSave={manualItems.length > 0}
+              />
+            ) : null}
           </View>
         ) : (
           <>
@@ -166,7 +206,7 @@ export default function ScanScreen() {
             {items && items.length > 0 ? (
               <View style={{ gap: space.md }}>
                 <T variant="caption" tone="faint">
-                  DETECTED (AI ESTIMATE - EDIT BEFORE SAVING)
+                  DETECTED (AI ESTIMATES)
                 </T>
                 {items.map((it, i) => (
                   <Card key={`${it.name}-${i}`}>
@@ -182,31 +222,103 @@ export default function ScanScreen() {
                   </Card>
                 ))}
                 <T variant="caption" tone="muted">
-                  Estimated total: {Math.round(totals.calories)} kcal
+                  Estimated total: {Math.round(totals.calories)} kcal · serving sizes can be corrected in your diary
                 </T>
               </View>
             ) : null}
 
+            <ManualEntry
+              name={manualName}
+              values={manualValues}
+              items={manualItems}
+              onName={setManualName}
+              onValues={setManualValues}
+              onAdd={addManualItem}
+              onSave={() => void save()}
+              onRemove={(index) => setManualItems((current) => current.filter((_, i) => i !== index))}
+              canSave={draftItems.length > 0}
+            />
+
             <View style={{ gap: space.md, marginTop: "auto", paddingBottom: Math.max(insets.bottom, space.md) }}>
-              {items && items.length > 0 ? (
-                <Button label="Save to diary" icon="checkmark" onPress={() => void save()} />
-              ) : (
-                <Button
-                  label="Retake photo"
-                  variant="secondary"
-                  icon="refresh"
-                  onPress={() => {
-                    setPhoto(null);
-                    setItems(null);
-                    setNote(null);
-                  }}
-                />
-              )}
+              <Button label="Retake photo" variant="secondary" icon="refresh" onPress={() => {
+                setPhoto(null);
+                setItems(null);
+                setManualItems([]);
+                setNote(null);
+              }} />
             </View>
           </>
         )}
+        </ScrollView>
       </View>
     </Screen>
+  );
+}
+
+function ManualEntry({
+  name, values, items, onName, onValues, onAdd, onSave, onRemove, canSave,
+}: {
+  name: string;
+  values: { calories: string; protein: string; carbs: string; fat: string };
+  items: FoodItem[];
+  onName: (value: string) => void;
+  onValues: (value: { calories: string; protein: string; carbs: string; fat: string }) => void;
+  onAdd: () => void;
+  onSave: () => void;
+  onRemove: (index: number) => void;
+  canSave: boolean;
+}) {
+  const fields = [
+    ["calories", "Calories", "numeric"],
+    ["protein", "Protein g", "decimal-pad"],
+    ["carbs", "Carbs g", "decimal-pad"],
+    ["fat", "Fat g", "decimal-pad"],
+  ] as const;
+
+  return (
+    <Card style={{ gap: space.sm }}>
+      <T variant="bodyStrong">Add food manually</T>
+      {items.map((item, index) => (
+        <Row key={`${item.name}-${index}`} style={{ justifyContent: "space-between" }}>
+          <T variant="small" style={{ flex: 1 }}>{item.name} · {Math.round(item.calories)} kcal</T>
+          <Pressable onPress={() => onRemove(index)} accessibilityRole="button" accessibilityLabel={`Remove ${item.name}`}>
+            <Ionicons name="close-circle-outline" size={20} color={color.textMuted} />
+          </Pressable>
+        </Row>
+      ))}
+      <TextInput
+        value={name}
+        onChangeText={onName}
+        placeholder="Food name"
+        placeholderTextColor={color.textFaint}
+        accessibilityLabel="Food name"
+        style={s.input}
+      />
+      <View style={s.fieldGrid}>
+        {fields.map(([key, label, keyboardType]) => (
+          <View key={key} style={s.fieldCell}>
+            <T variant="caption" tone="muted">{label}</T>
+            <TextInput
+              value={values[key]}
+              onChangeText={(value) => onValues({ ...values, [key]: value })}
+              placeholder="0"
+              placeholderTextColor={color.textFaint}
+              keyboardType={keyboardType}
+              accessibilityLabel={label}
+              style={s.input}
+            />
+          </View>
+        ))}
+      </View>
+      <Button
+        label="Add food"
+        variant="secondary"
+        icon="add"
+        onPress={onAdd}
+        disabled={!name.trim() || Object.values(values).some((value) => value === "" || !Number.isFinite(Number(value)) || Number(value) < 0)}
+      />
+      {canSave ? <Button label="Save to diary" icon="checkmark" onPress={onSave} /> : null}
+    </Card>
   );
 }
 
@@ -235,4 +347,15 @@ const s = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: color.surfaceRaised,
   },
+  input: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: color.line,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    color: color.text,
+    backgroundColor: color.surfaceRaised,
+  },
+  fieldGrid: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  fieldCell: { width: "48%", gap: space.xs },
 });
