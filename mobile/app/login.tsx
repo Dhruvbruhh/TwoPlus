@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,17 +19,32 @@ import { color, gutter, radius, space, type } from "../src/lib/theme";
 /**
  * Sign in.
  *
- * Email and password only, because that is what the TwoPlus backend actually
- * supports: accounts are created by the gym or on the website, and this screen
- * must not imply a phone-OTP flow that has no server behind it.
+ * Email + password (accounts are created by the gym or on the website) and
+ * Google, which is delegated entirely to Supabase OAuth: the app only opens
+ * the browser and receives the session back on the twoplus:// deep link.
  */
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reveal, setReveal] = useState(false);
+
+  async function google() {
+    setGoogleBusy(true);
+    setError(null);
+    try {
+      await signInWithGoogle();
+      // On web this navigates away; on native the session lands via the
+      // deep link and onAuthStateChange picks it up.
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start Google sign-in.");
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
 
   async function submit() {
     const mail = email.trim();
@@ -144,6 +160,33 @@ export default function LoginScreen() {
 
                 <Button label="Sign in" onPress={submit} loading={busy} />
 
+                <View style={s.orRow}>
+                  <View style={s.orLine} />
+                  <T variant="caption" tone="faint">
+                    OR
+                  </T>
+                  <View style={s.orLine} />
+                </View>
+
+                <Pressable
+                  onPress={google}
+                  disabled={googleBusy || busy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign in with Google"
+                  style={({ pressed }) => [s.googleBtn, pressed && { opacity: 0.85 }]}
+                >
+                  {googleBusy ? (
+                    <ActivityIndicator color={color.text} />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-google" size={19} color="#4285F4" />
+                      <T variant="bodyStrong" style={{ color: color.text }}>
+                        Continue with Google
+                      </T>
+                    </>
+                  )}
+                </Pressable>
+
                 <T variant="caption" tone="faint" align="center" style={{ lineHeight: 17 }}>
                   No account yet? Ask your gym to add you, or sign up at twoplus.fit. Your
                   membership links to this email automatically.
@@ -208,5 +251,22 @@ const s = StyleSheet.create({
     backgroundColor: color.dangerSoft,
     borderRadius: radius.md,
     padding: space.md,
+  },
+  orRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+  },
+  orLine: { flex: 1, height: 1, backgroundColor: color.line },
+  googleBtn: {
+    minHeight: 52,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: color.line,
+    backgroundColor: color.surface,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space.md,
   },
 });

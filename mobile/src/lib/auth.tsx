@@ -6,6 +6,8 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { Platform } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 
@@ -43,6 +45,7 @@ type AuthState = {
   /** Set when the member lookup failed for a reason other than "not found". */
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshMember: () => Promise<void>;
 };
@@ -144,6 +147,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (signInError) throw signInError;
   }, []);
 
+  /**
+   * Google sign-in via Supabase OAuth (PKCE).
+   *
+   * Web: full-page redirect to Google, Supabase bounces back to the origin.
+   * Native: open the system browser ourselves with skipBrowserRedirect, wait
+   * for the twoplus:// deep link, then exchange the returned code for a
+   * session. The verifier lives in the same SecureStore-backed storage, so the
+   * exchange is bound to this device.
+   */
+  const signInWithGoogle = useCallback(async () => {
+    if (Platform.OS === "web") {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: globalThis.location?.origin ?? undefined },
+      });
+      if (error) throw error;
+      return;
+    }
+
+    const redirectUrl = "twoplus://auth/callback";
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
+    });
+    if (error) throw error;
+    if (!data?.url) throw new Error("Could not start Google sign-in.");
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+    if (result.type !== "success" || !("url" in result) || !result.url) {
+      return; // User closed the browser; nothing to clean up.
+    }
+    const code = new URL(result.url).searchParams.get("code");
+    if (!code) throw new Error("Google sign-in was cancelled or timed out.");
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+    if (exchangeError) throw exchangeError;
+  }, []);
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setMember(null);
@@ -161,10 +201,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unclaimed,
       error,
       signIn,
+      signInWithGoogle,
       signOut,
       refreshMember,
     }),
-    [ready, session, member, unclaimed, error, signIn, signOut, refreshMember],
+    [ready, session, member, unclaimed, error, signIn, signInWithGoogle, signOut, refreshMember],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

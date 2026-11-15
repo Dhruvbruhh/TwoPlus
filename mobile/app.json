@@ -52,7 +52,8 @@
         {
           "locationWhenInUsePermission": "TwoPlus records the route of your runs and walks."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "router": {
