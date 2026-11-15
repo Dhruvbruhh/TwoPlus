@@ -58,11 +58,28 @@ five requested in `app.json`):
 - Added by Expo prebuild defaults: `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`,
   `VIBRATE`, `READ_EXTERNAL_STORAGE` (≤ SDK 32), `WRITE_EXTERNAL_STORAGE` (≤ SDK 32).
 
-**Owner decision before submission:** the merged manifest asks for more than the
+**Provenance (manifest-merger blame report, verified 2026-11-16):** app source
+has no audio-recording or overlay code. `RECORD_AUDIO` is injected by the
+`expo-image-picker` config plugin (it adds microphone permission unless
+`microphonePermission: false`); `SYSTEM_ALERT_WINDOW` is hardcoded in Expo's
+prebuild manifest template as an "optional permission". Neither comes from a
+third-party library manifest merge.
+
+**Remediation applied:** `expo.android.blockedPermissions:
+["RECORD_AUDIO", "SYSTEM_ALERT_WINDOW"]` set in `mobile/app.json`; prebuild
+regenerated `mobile/android/app/src/main/AndroidManifest.xml` with
+`tools:node="remove"` on both entries, which strips them from the final merged
+manifest at build time. Remaining prebuild extras (`VIBRATE`, legacy external
+storage ≤ SDK 32) are inert or legacy-normal; left in place. Next release
+build should confirm via `aapt2 dump badging` that the APK no longer requests
+either permission.
+
+**Owner decision before submission:** ~~the merged manifest asks for more than the
 product uses. `RECORD_AUDIO` and `SYSTEM_ALERT_WINDOW` in particular will draw
 review questions and are not used by any feature. Trim them (via
 `expo.android.blockedPermissions` in `mobile/app.json`, then prebuild + rebuild)
-or prepare a justification for the Data Safety form. Data Safety answers must
+or prepare a justification for the Data Safety form.~~ Resolved via
+`blockedPermissions` (see above). Data Safety answers must
 match the **manifest**, not the intent.
 
 iOS (`mobile/app.json` `ios.infoPlist`): location-when-in-use, camera, photo

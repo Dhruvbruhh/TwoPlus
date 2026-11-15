@@ -35,6 +35,10 @@
         "CAMERA",
         "READ_MEDIA_IMAGES",
         "ACTIVITY_RECOGNITION"
+      ],
+      "blockedPermissions": [
+        "RECORD_AUDIO",
+        "SYSTEM_ALERT_WINDOW"
       ]
     },
     "plugins": [
