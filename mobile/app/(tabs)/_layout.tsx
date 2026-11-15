@@ -45,8 +45,8 @@ export default function TabsLayout() {
           ...Platform.select({
             android: { elevation: 0 },
             ios: {
-              shadowColor: "#000",
-              shadowOpacity: 0.35,
+              shadowColor: "#231F30",
+              shadowOpacity: 0.1,
               shadowRadius: 18,
               shadowOffset: { width: 0, height: 10 },
             },
@@ -83,6 +83,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="nutrition"
+        options={{
+          title: "Nutrition",
+          tabBarIcon: ({ focused }) => (
+            <Ionicons name={focused ? "nutrition" : "nutrition-outline"} size={21} color={focused ? color.accentText : color.textFaint} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="coach"
         options={{
           title: "Coach",
@@ -105,7 +114,8 @@ export default function TabsLayout() {
         options={{
           title: "Tools",
           // Sixth destination would break the 5-tab navigation ceiling
-          // (HIG/Material 3); calculators live one tap away in Profile.
+          // (HIG/Material 3); calculators live one tap away in Profile,
+          // nutrition took the tab slot.
           href: null,
         }}
       />

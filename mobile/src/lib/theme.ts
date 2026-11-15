@@ -5,50 +5,63 @@
  * import from here so the app stays visually coherent and a token change
  * moves every surface at once.
  *
- * The palette is deliberately narrow: near-black grounds, a warm bone text
- * ramp, and a single burgundy accent that carries action and progress. Glass
- * is used for the few layered surfaces (tab bar, sheet headers) and nowhere
- * else, because blur is expensive on mid-range phones.
+ * The palette is a light, premium consumer look: warm off-white grounds,
+ * white cards with soft shadows, a deep plum text ramp, and a lavender-violet
+ * accent. Metric colours are pastels with meaning, not decoration: each
+ * fitness metric family owns one hue (protein blue, carbs peach, fat pink,
+ * activity mint) and is used consistently everywhere it appears.
  */
 
 export const color = {
-  // Grounds, darkest to lightest. Never pure black: #000 crushes on OLED
-  // and kills the sense of depth the glass surfaces rely on.
-  canvas: "#0B0B0D",
-  surface: "#101014",
-  surfaceRaised: "#16161C",
-  surfaceOverlay: "#1C1C24",
+  // Grounds, lightest to deepest. Warm off-white rather than pure white so
+  // white cards read as raised surfaces with their shadows.
+  canvas: "#FAF8F5",
+  surface: "#FFFFFF",
+  surfaceRaised: "#F4F1EC",
+  surfaceOverlay: "#ECE8E1",
 
-  // Warm bone ramp. Tinted slightly warm so the app reads premium rather
-  // than clinical.
-  text: "#F4EFE7",
-  textMuted: "#A8A29A",
-  textFaint: "#6F6A63",
+  // Deep plum ramp. Tinted cool-warm so headings read premium, not clinical.
+  text: "#231F30",
+  textMuted: "#6B6678",
+  textFaint: "#9C97A8",
 
-  // Burgundy, the single accent. `accent` for fills, `accentText` for text
-  // on dark grounds (lighter so it clears 4.5:1), `accentSoft` for tints.
-  accent: "#8E2B3F",
-  accentBright: "#C4485F",
-  accentText: "#E8899C",
-  accentSoft: "rgba(196,72,95,0.14)",
+  // Lavender-violet, the single brand accent. `accent` for fills,
+  // `accentText` for text on light grounds (darker so it clears 4.5:1),
+  // `accentSoft` for tints.
+  accent: "#7B5CD6",
+  accentBright: "#9B7FE8",
+  accentText: "#6244B8",
+  accentSoft: "rgba(123,92,214,0.12)",
+
+  // Pastel metric family. Each hue belongs to one kind of data everywhere:
+  // mint = activity/movement, peach = carbs/energy, pink = fat/recovery,
+  // blue = protein/hydration, lavender = the brand accent family.
+  mint: "#34A853",
+  mintSoft: "rgba(52,168,83,0.13)",
+  peach: "#E8873A",
+  peachSoft: "rgba(232,135,58,0.13)",
+  pink: "#D64C7F",
+  pinkSoft: "rgba(214,76,127,0.12)",
+  blue: "#3B7DD8",
+  blueSoft: "rgba(59,125,216,0.12)",
 
   // Semantic. Green means "good/hit target", amber "attention", red "failed".
-  success: "#4FA97C",
-  successSoft: "rgba(79,169,124,0.14)",
-  warning: "#D8A24A",
-  warningSoft: "rgba(216,162,74,0.14)",
-  danger: "#D2585F",
-  dangerSoft: "rgba(210,88,95,0.14)",
-  info: "#5B93C9",
-  infoSoft: "rgba(91,147,201,0.14)",
+  success: "#2E8B5F",
+  successSoft: "rgba(46,139,95,0.12)",
+  warning: "#C07E1F",
+  warningSoft: "rgba(192,126,31,0.13)",
+  danger: "#C7444E",
+  dangerSoft: "rgba(199,68,78,0.11)",
+  info: "#3B7DD8",
+  infoSoft: "rgba(59,125,216,0.12)",
 
   // Hairlines. `line` for resting edges, `lineStrong` for emphasis.
-  line: "rgba(244,239,231,0.09)",
-  lineStrong: "rgba(244,239,231,0.16)",
+  line: "rgba(35,31,48,0.08)",
+  lineStrong: "rgba(35,31,48,0.15)",
 
-  // Glass. Kept opaque enough to hold contrast over photography.
-  glass: "rgba(22,22,28,0.82)",
-  glassBorder: "rgba(244,239,231,0.12)",
+  // Glass. Near-opaque white for the few layered surfaces (tab bar, sheets).
+  glass: "rgba(255,255,255,0.88)",
+  glassBorder: "rgba(35,31,48,0.07)",
 } as const;
 
 export const space = {

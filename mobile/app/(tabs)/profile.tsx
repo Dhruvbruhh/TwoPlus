@@ -138,7 +138,7 @@ export default function ProfileScreen() {
                 borderRadius: radius.pill,
                 backgroundColor: on ? color.accentSoft : color.surfaceRaised,
                 borderWidth: 1,
-                borderColor: on ? "rgba(196,72,95,0.4)" : "transparent",
+                borderColor: on ? "rgba(123,92,214,0.4)" : "transparent",
               }}
             >
               <T variant="smallStrong" tone={on ? "accent" : "muted"}>

@@ -55,7 +55,7 @@ export default function LoginScreen() {
   return (
     <View style={s.root}>
       <LinearGradient
-        colors={["#1A0C10", color.canvas, color.canvas]}
+        colors={["#EDE9FB", color.canvas, color.canvas]}
         locations={[0, 0.42, 1]}
         style={StyleSheet.absoluteFill}
       />
