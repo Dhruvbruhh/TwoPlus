@@ -70,9 +70,18 @@ third-party library manifest merge.
 regenerated `mobile/android/app/src/main/AndroidManifest.xml` with
 `tools:node="remove"` on both entries, which strips them from the final merged
 manifest at build time. Remaining prebuild extras (`VIBRATE`, legacy external
-storage ≤ SDK 32) are inert or legacy-normal; left in place. Next release
-build should confirm via `aapt2 dump badging` that the APK no longer requests
-either permission.
+storage ≤ SDK 32) are inert or legacy-normal; left in place.
+
+**Verified in the rebuilt artifacts (2026-11-16, see `BUILDING.md` for paths and
+SHA-256 hashes):** `aapt2 dump badging` on the release APK and a protobuf parse
+of the AAB base manifest both show `RECORD_AUDIO` and `SYSTEM_ALERT_WINDOW`
+**absent**. Package `fit.twoplus.member`, versionCode 1 / versionName 1.0.0 /
+targetSdk 36, v2-signed with the same release certificate
+(`CN=TwoPlus, OU=Mobile, O=TwoPlus, C=IN`). APK additionally carries
+library-added permissions not in `app.json`: `ACCESS_NETWORK_STATE`,
+`USE_BIOMETRIC`/`USE_FINGERPRINT`, `DUMP` (AAB only), and its own
+`DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` — benign, from AndroidX/biometric
+libraries. Data Safety answers must still match the **manifest**.
 
 **Owner decision before submission:** ~~the merged manifest asks for more than the
 product uses. `RECORD_AUDIO` and `SYSTEM_ALERT_WINDOW` in particular will draw
