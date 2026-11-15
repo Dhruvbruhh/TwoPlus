@@ -277,10 +277,10 @@ export default function HomeScreen() {
                       L{view.progression.levelIndex + 1}
                     </T>
                   </View>
+                  <T variant="caption" tone="faint" align="right">
+                    {XP_SESSION} XP / workout{"\n"}· {XP_VISIT} / visit
+                  </T>
                 </View>
-                <T variant="caption" tone="faint">
-                  {XP_SESSION} XP / workout · {XP_VISIT} / visit
-                </T>
               </Row>
             </Card>
           ) : null}
