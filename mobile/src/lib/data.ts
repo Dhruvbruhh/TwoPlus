@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
+import { getMeals } from "./nutrition";
 
 /**
  * Member-facing reads.
@@ -528,6 +529,73 @@ export function bmiOf(weightKg: number | null, heightCm: number | null) {
   if (!weightKg || !heightCm) return null;
   const m = heightCm / 100;
   return weightKg / (m * m);
+}
+
+/**
+ * Your data: export and account deletion, the mobile twin of the web app's
+ * Phase 18 section.
+ *
+ * Export gathers every structured record the member can read under RLS.
+ * Progress photos are not included (they live in storage buckets, and the
+ * mobile app has no photo list yet); the web export covers them.
+ */
+export async function exportMyData(): Promise<string> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user.user) throw new Error("Not signed in");
+  const memberRow = await supabase.from("members").select("*").eq("user_id", user.user.id).maybeSingle();
+  if (memberRow.error) throw new Error(memberRow.error.message);
+  const member = memberRow.data as Record<string, unknown> | null;
+  if (!member) throw new Error("No member record is linked to this account");
+  const memberId = member.id as string;
+
+  const [memberships, payments, attendance, measurements, sessions, plans, dietPlans, classes] =
+    await Promise.all([
+      getMemberships(memberId),
+      getPayments(memberId),
+      getAttendance(memberId, 500),
+      getMeasurements(memberId),
+      getRecentSessions(memberId, 500),
+      getActiveWorkoutPlan(memberId),
+      getActiveDietPlan(memberId),
+      getMyBookings(memberId),
+    ]);
+
+  // Sets are per-session, so one query per recent session; capped to keep the
+  // payload sane. AsyncStorage-only data (meals, water) is included too: it is
+  // the member's data even though it never reached the server.
+  const sets = await Promise.all(sessions.slice(0, 50).map((s) => getSets(s.id)));
+  const meals = await getMeals();
+  const water = await getWaterLog();
+
+  return JSON.stringify(
+    {
+      exported_on: new Date().toISOString(),
+      member,
+      memberships,
+      payments,
+      attendance,
+      measurements,
+      workout_sessions: sessions.map((s, i) => ({ ...s, sets: sets[i] })),
+      workout_plan: plans,
+      diet_plan: dietPlans,
+      class_bookings: classes,
+      on_device: { meals, water },
+      note: "Progress photos are not part of this export; ask your gym for them.",
+    },
+    null,
+    2,
+  );
+}
+
+/**
+ * Delete the account through the 0016 RPC. Erases the member's identity,
+ * training history and sign-in; payments stay with the gym as financial
+ * records. Refuses gym owners with a readable error.
+ */
+export async function deleteMyAccount(): Promise<{ member_erased: boolean; photos_removed: number }> {
+  const { data, error } = await supabase.rpc("delete_my_account");
+  if (error) throw new Error(error.message || "Could not delete your account");
+  return data as { member_erased: boolean; photos_removed: number };
 }
 
 export function formatMoney(minor: number, currency = "INR") {

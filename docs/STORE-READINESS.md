@@ -186,6 +186,12 @@ Ready:
 - [x] Host builds a signed Android APK and AAB from a keystore kept outside the
       repo (`android/keystore.properties`, gitignored). Both artifacts sit in
       `release/mobile/` with checksums; certificate `CN=TwoPlus`
+- [x] In-app account deletion and data export exist in the mobile member app
+      (profile screen "Your data" section; `delete_my_account` RPC from
+      migration 0016 + JSON export via the share sheet). Google's account
+      deletion requirement for apps with account creation is met in code; the
+      rebuilt release APK/AAB predate this feature, so rebuild before
+      submission if the deletion flow must ship in the first store build.
 
 Prepared, human action required:
 

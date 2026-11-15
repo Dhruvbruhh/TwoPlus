@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
 import { useAsync } from "../../src/lib/useAsync";
+import { deleteMyAccount, exportMyData } from "../../src/lib/data";
 import {
   addMeasurement,
   getAttendance,
@@ -288,11 +289,118 @@ export default function ProfileScreen() {
           onPress={confirmSignOut}
           style={{ marginTop: space.sm }}
         />
+        <YourData />
         <T variant="caption" tone="faint" align="center" style={{ marginTop: space.md }}>
           Ask your gym to correct any detail on this page.
         </T>
       </View>
     </Screen>
+  );
+}
+
+/**
+ * Your data: export as a share sheet, then deletion with a typed confirmation.
+ * Mirrors the web app's Phase 18 section; the RPC is the same one the web uses.
+ */
+function YourData() {
+  const { signOut } = useAuth();
+  const [confirm, setConfirm] = useState("");
+  const [working, setWorking] = useState<"" | "export" | "delete">("");
+
+  async function doExport() {
+    setWorking("export");
+    try {
+      const json = await exportMyData();
+      const name = `twoplus-my-data-${new Date().toISOString().slice(0, 10)}.json`;
+      const { File, Paths } = await import("expo-file-system");
+      const { shareAsync } = await import("expo-sharing");
+      const file = new File(Paths.cache, name);
+      file.write(json);
+      await shareAsync(file.uri, { mimeType: "application/json", dialogTitle: name });
+    } catch (e) {
+      Alert.alert("Export failed", e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setWorking("");
+    }
+  }
+
+  function doDelete() {
+    setWorking("delete");
+    void (async () => {
+      try {
+        await deleteMyAccount();
+        // Server-side delete also revokes the session; sign-out clears the
+        // local member state so the app returns to the login screen.
+        await signOut();
+      } catch (e) {
+        Alert.alert("Could not delete", e instanceof Error ? e.message : "Something went wrong.");
+        setWorking("");
+      }
+    })();
+  }
+
+  const ready = confirm.trim().toUpperCase() === "DELETE";
+
+  return (
+    <View
+      accessibilityLabel="Your data"
+      style={{
+        marginTop: space.sm,
+        padding: space.md,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+      }}
+    >
+      <T variant="bodyStrong">Your data</T>
+      <T variant="caption" tone="muted" style={{ marginTop: 4 }}>
+        Download everything this app holds about you, or remove your account for
+        good. Deleting erases your training log, measurements, bookings, photos
+        and this sign-in. Payments and invoices stay with your gym, because they
+        are its financial records.
+      </T>
+      <Button
+        label={working === "export" ? "Preparing." : "Export my data"}
+        variant="secondary"
+        icon="download-outline"
+        loading={working === "export"}
+        disabled={working === "delete"}
+        onPress={() => void doExport()}
+        style={{ marginTop: space.md }}
+      />
+      <T variant="caption" tone="faint" style={{ marginTop: space.md }}>
+        To delete, type DELETE below. This cannot be undone.
+      </T>
+      <TextInput
+        value={confirm}
+        onChangeText={setConfirm}
+        autoCapitalize="characters"
+        autoCorrect={false}
+        placeholder="DELETE"
+        placeholderTextColor={color.textFaint}
+        accessibilityLabel="Type DELETE to confirm account deletion"
+        style={{
+          minHeight: 44,
+          marginTop: space.xs,
+          borderRadius: radius.md,
+          borderWidth: 1,
+          borderColor: ready ? color.danger : color.line,
+          backgroundColor: color.surfaceRaised,
+          paddingHorizontal: space.md,
+          color: color.text,
+        }}
+      />
+      <Button
+        label="Delete my account"
+        variant="danger"
+        icon="trash-outline"
+        loading={working === "delete"}
+        disabled={!ready || working === "export"}
+        onPress={doDelete}
+        style={{ marginTop: space.sm }}
+      />
+    </View>
   );
 }
 
