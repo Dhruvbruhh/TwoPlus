@@ -1,6 +1,7 @@
 import React from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -131,14 +132,15 @@ export function Screen({
   const body = (
     <View style={[{ padding: gutter, gap: space.lg }, contentStyle]}>{children}</View>
   );
+  const Container = Platform.OS === "web" ? View : SafeAreaView;
   return (
-    <SafeAreaView style={s.screen} edges={edges}>
+    <Container style={s.screen} edges={edges}>
       {scroll ? (
         <ScrollView
           contentContainerStyle={{ paddingBottom: space.huge }}
           showsVerticalScrollIndicator={false}
-          refreshControl={undefined}
-          {...(onRefresh
+          // refreshControl is native-only: on web it blanks the whole scene.
+          {...(onRefresh && Platform.OS !== "web"
             ? {
                 refreshControl: (
                   <RefreshIndicator refreshing={!!refreshing} onRefresh={onRefresh} />
@@ -151,7 +153,7 @@ export function Screen({
       ) : (
         <View style={{ flex: 1 }}>{body}</View>
       )}
-    </SafeAreaView>
+    </Container>
   );
 }
 

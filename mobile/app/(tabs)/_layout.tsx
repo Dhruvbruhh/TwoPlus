@@ -104,9 +104,9 @@ export default function TabsLayout() {
         name="tools"
         options={{
           title: "Tools",
-          tabBarIcon: ({ focused }) => (
-            <Ionicons name={focused ? "calculator" : "calculator-outline"} size={21} color={focused ? color.accentText : color.textFaint} />
-          ),
+          // Sixth destination would break the 5-tab navigation ceiling
+          // (HIG/Material 3); calculators live one tap away in Profile.
+          href: null,
         }}
       />
     </Tabs>

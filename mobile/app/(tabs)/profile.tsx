@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Pressable, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
 import { useAsync } from "../../src/lib/useAsync";
@@ -47,6 +48,7 @@ const PANES: { key: Pane; label: string }[] = [
 export default function ProfileScreen() {
   const { member, session, signOut } = useAuth();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [pane, setPane] = useState<Pane>("membership");
 
   const state = useAsync(
@@ -273,7 +275,19 @@ export default function ProfileScreen() {
       ) : null}
 
       <View style={{ marginTop: space.md }}>
-        <Button label="Sign out" variant="secondary" icon="log-out-outline" onPress={confirmSignOut} />
+        <Button
+          label="Fitness tools"
+          variant="secondary"
+          icon="calculator-outline"
+          onPress={() => router.push("/tools")}
+        />
+        <Button
+          label="Sign out"
+          variant="secondary"
+          icon="log-out-outline"
+          onPress={confirmSignOut}
+          style={{ marginTop: space.sm }}
+        />
         <T variant="caption" tone="faint" align="center" style={{ marginTop: space.md }}>
           Ask your gym to correct any detail on this page.
         </T>

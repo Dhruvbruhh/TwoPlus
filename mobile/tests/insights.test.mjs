@@ -31,7 +31,11 @@ test("insights: 0.2 kg is scale noise and is not reported", () => {
 });
 
 test("insights: 3+ sessions in the last week are counted", () => {
-  const days = ["2026-11-08", "2026-11-10", "2026-11-12", "2026-09-01"];
+  // Relative to today: the insight window is a rolling 7 days ending now,
+  // so hardcoded dates age out of it (this test broke on 2026-11-15).
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const day = (n) => iso(new Date(Date.now() - n * 86_400_000));
+  const days = [day(1), day(3), day(5), "2026-09-01"];
   const out = coachInsights({ weightSeries: [], completedSessionDays: days, streak: 0, hasPlan: false });
   assert.ok(out.some((i) => i.text.startsWith("3 sessions")));
 });
