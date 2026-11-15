@@ -4,6 +4,9 @@ Three surfaces ship from one codebase: the browser app, an Android shell, and an
 iOS shell. The last two are Capacitor wrappers around the same `dist/` bundle, so
 there is no second implementation to keep in sync.
 
+A separate native member app lives in `mobile/` (Expo / React Native). It has its
+own build recipe below.
+
 ## Web
 
 ```bash
@@ -69,6 +72,54 @@ CI (`.github/workflows/android.yml`) still produces an unsigned debug APK on eve
 push, because the keystore is not in the repository and should not be. To have CI
 sign, add the keystore and its passwords as repository secrets and switch the job to
 `bundleRelease`; that is a publishing decision, not a build step.
+
+## Native member app (mobile/, Expo)
+
+The member phone app is a separate Expo/React Native project in `mobile/` with its
+own package.json, its own Supabase anon key usage, and app id `fit.twoplus.member`.
+It is NOT a Capacitor wrapper and does not use `dist/`.
+
+Release builds were produced on this host (2026-11-16, Expo SDK 58 / RN 0.88.1):
+
+```bash
+cd mobile
+npm install
+npx expo prebuild --platform android --no-install
+cd android
+./gradlew assembleRelease   # -> app/build/outputs/apk/release/app-release.apk
+./gradlew bundleRelease     # -> app/build/outputs/bundle/release/app-release.aab
+```
+
+Signing mirrors the shell: `mobile/android/keystore.properties` (gitignored) points
+at the same `D:\TwoPlus\keys\twoplus-release.jks`. `mobile/android/app/build.gradle`
+falls back to the debug keystore when the file is absent, so a clone still builds.
+
+Three things `expo prebuild` wipes on every run and must be re-applied to
+`mobile/android/app/build.gradle` (and friends) afterwards:
+
+1. **Release signing block.** Prebuild emits debug-only `signingConfigs`. Re-add
+   the `keystore.properties` loader and a `release` signing config, and point
+   `buildTypes.release` at it.
+2. **Windows MAX_PATH fix.** Ninja object paths under the default `app/.cxx`
+   staging dir exceed Windows' 260-char limit. Re-add to the end of the
+   `android { }` block (prebuild emits no `externalNativeBuild` section at all):
+   `externalNativeBuild { cmake { buildStagingDirectory = file("C:/cxx") } }`
+   Without it, `assembleRelease` fails at `ninja: error: mkdir ...` on a long
+   codegen path. Also delete any stale `app/.cxx` directory after re-applying.
+3. **`local.properties`** (`sdk.dir=…`) is gitignored; copy it back or set
+   `ANDROID_HOME`.
+
+shortcut: `mobile/android/` is fully gitignored (0 tracked files), so these
+patches live only on the build machine. If a second build machine appears, move
+the signing + staging fixes into a committed prebuild patch script first.
+
+Artifacts from the 2026-11-16 build (outside the repo): APK 110,754,685 bytes and
+AAB 75,724,780 bytes, both `fit.twoplus.member` versionCode 1 / versionName 1.0.0,
+signed v2 (APK) and v1/JAR (AAB, the correct scheme for bundles) with certificate
+`CN=TwoPlus, OU=Mobile, O=TwoPlus, C=IN`. The AAB declares camera, location, and
+photo-library permissions plus Google sign-in — the store declarations in
+`STORE-READINESS.md` describe the Capacitor shell, not this app, and need their
+own pass before submission.
 
 ## iOS
 
