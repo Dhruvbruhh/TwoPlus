@@ -4,10 +4,10 @@ import { Env } from "./env";
  * Supabase client for the member app.
  *
  * Storage: expo-secure-store encrypts at rest on iOS (Keychain) and Android
- * (Keystore). SecureStore has a 2048-byte value limit, and a Supabase session
- * (access JWT + refresh token + user object + MFA state) routinely exceeds it,
- * so we keep the session in one SecureStore key and let AsyncStorage hold
- * nothing security-relevant.
+ * (Keystore). There is no fixed byte limit on stored values (the old 2048-byte
+ * cap is gone from the library), and a Supabase session (access JWT + refresh
+ * token + user object) is far larger than that anyway, so we keep the session
+ * in one SecureStore key and let AsyncStorage hold nothing security-relevant.
  *
  * Detect session on web too: expo-secure-store has no web implementation, so
  * that platform falls back to localStorage. The web build exists only for

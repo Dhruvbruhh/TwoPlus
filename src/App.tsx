@@ -1040,6 +1040,10 @@ export default function App() {
     "Access & roles": ["owner"],
   }
   const canWrite = !!org && (writeRoles[active]?.includes(org.role) ?? false)
+// Voiding an invoice is a money action reserved to owner/manager/finance by
+// RLS (0006). Receptionist may raise invoices but the void button must not
+// appear for them: RLS would silently reject the write.
+const canVoidInvoice = !!org && ["owner", "manager", "finance"].includes(org.role)
   return (
     <div className={`app ${active === "Overview" ? "summary-view" : ""}`}>
       <nav className="app-side-nav" aria-label="Main navigation">
@@ -1744,9 +1748,9 @@ export default function App() {
                     {active === "Invoices" && (
                       <Button
                         secondary
-                        disabled={!invoices.length || !canWrite}
+                        disabled={!invoices.length || !canVoidInvoice}
                         title={
-                          !canWrite
+                          !canVoidInvoice
                             ? "Your role cannot void invoices"
                             : invoices.length
                               ? undefined

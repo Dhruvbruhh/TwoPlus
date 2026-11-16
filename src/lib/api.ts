@@ -558,11 +558,15 @@ export async function checkInMember(
 }
 
 export async function checkOutMember(attendanceId: string): Promise<void> {
-  const { error } = await getSupabase()
+  // RLS can silently filter the row out (a role without the update policy
+  // writes zero rows without erroring), so count what actually changed.
+  const { data, error } = await getSupabase()
     .from("attendance")
     .update({ check_out: new Date().toISOString() })
-    .eq("id", attendanceId);
+    .eq("id", attendanceId)
+    .select("id");
   throwIf(error, "Could not record the check-out");
+  if (!data?.length) throw err("Could not record the check-out: no open check-in found");
 }
 
 // Recent visits for the member drawer. Reads only that member's rows.
@@ -1532,7 +1536,7 @@ export async function recordMeasurement(
 ): Promise<void> {
   const supabase = getSupabase();
   const { data: userData } = await supabase.auth.getUser();
-  const { error } = await supabase.from("fitness_measurements").upsert(
+  const { data, error } = await supabase.from("fitness_measurements").upsert(
     {
       organization_id: orgId,
       member_id: input.member_id,
@@ -1549,8 +1553,12 @@ export async function recordMeasurement(
       recorded_by: userData.user?.id ?? null,
     },
     { onConflict: "member_id,measured_on" },
-  );
+  )
+  .select("id");
+  // An upsert blocked by RLS (role without the matching update policy) returns
+  // zero rows without an error, which would otherwise look like success.
   throwIf(error, "Could not save the measurement");
+  if (!data?.length) throw err("Could not save the measurement");
 }
 
 // ---------------------------------------------------------------------------

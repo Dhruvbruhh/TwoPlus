@@ -37,7 +37,10 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test": "npx tsx --test tests/*.test.mjs",
+    "test": "tsx --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
   }
 }
