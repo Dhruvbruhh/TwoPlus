@@ -226,12 +226,13 @@ Ready:
       (profile screen "Your data" section; `delete_my_account` RPC from
       migration 0016 + JSON export via the share sheet). Google's account
       deletion requirement for apps with account creation is met in code.
-      Release artifacts rebuilt 2026-11-16 from commit b15fa70, which includes
+      Release artifacts rebuilt 2026-11-16 from commit cfbf2cf, which includes
       the deletion-flow review fixes (0016 phone placeholder, on-device wipe,
-      export parity) and the scheduled-only class filter; hashes in
+      export parity), the member-flow fixes (UTC day keys, timer leak, scanner
+      error path), and the RLS policy fixes (migration 0017); hashes in
       `BUILDING.md`. The RPC itself is still not live
-      in production — applying migrations 0005+0016 is the owner procedure in
-      `docs/MIGRATION-CHECKLIST.md`.
+      in production — applying migrations 0005+0016 (plus 0017) is the owner
+      procedure in `docs/MIGRATION-CHECKLIST.md`.
 
 Prepared, human action required:
 
@@ -279,14 +280,14 @@ permission. Nothing
 was installed on a physical device: `adb devices` is empty, so the APK is verified
 as a signed package, not as a working install.
 
-**Member app** (current pair built 2026-11-16 from commit b15fa70 by the
+**Member app** (current pair built 2026-11-16 from commit cfbf2cf by the
 documented short-path process; see `BUILDING.md` for the build recipe and the
 hash table of earlier pairs):
 
 | Artifact | Path | Size | SHA-256 |
 | --- | --- | --- | --- |
-| APK | `release/mobile/TwoPlus-1.0-android-member.apk` | 110,814,489 B | `C991B9FA963230E2D4CFC623C59DF7F9ABF30779396747DBDA82D21CB2A3ADC3` |
-| AAB | `release/mobile/TwoPlus-1.0-android-member.aab` | 75,748,381 B | `B0F443089712D39F17107EA510B1D445611EFE7C157ECEBD2655D568FC83F637` |
+| APK | `release/mobile/TwoPlus-1.0-android-member.apk` | 110,814,829 B | `7AE4C142F0BA6601AF76C42318FFF6FC9FDABA5ABEB6098256F71313C155F183` |
+| AAB | `release/mobile/TwoPlus-1.0-android-member.aab` | 75,748,153 B | `D75473A5A20B6BA72C7A03F25A877E15C18325CDA40749C27A5452AF8261628E` |
 
 Same keystore family: APK verified with `apksigner` (v2 scheme only; v1/v3/v3.1/v4
 false), AAB with `jarsigner`/`keytool` (v1/JAR is the correct scheme for
