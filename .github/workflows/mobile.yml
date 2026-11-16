@@ -1,0 +1,89 @@
+name: Mobile
+
+# Gates the Expo member app (mobile/) - the Play Store target - on every push
+# to master: types, the node:test suite, and a release compile of the native
+# project. The store shell has its own workflows (android.yml, ios.yml).
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "mobile/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/mobile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Types and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci
+        working-directory: mobile
+
+      - name: Type check
+        run: npx tsc --noEmit
+        working-directory: mobile
+
+      - name: Unit tests
+        run: npm test
+        working-directory: mobile
+
+  compile:
+    name: Release compile (no signing)
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - run: npm ci
+        working-directory: mobile
+
+      # Debug keystore: this job proves the native project still compiles and
+      # the expo prebuild output links, not that it is distributable. Signed
+      # release artifacts come from the owner's host (docs/BUILDING.md).
+      - name: Create the Expo native project
+        run: npx expo prebuild --platform android --no-install
+        working-directory: mobile
+
+      - name: Assemble
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+        working-directory: mobile
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: member-debug-apk
+          path: mobile/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+          if-no-files-found: error

@@ -262,7 +262,9 @@ export async function getUpcomingClasses(organizationId: string) {
       .select("id, name, starts_at, duration_minutes, capacity, trainer_id")
       .eq("organization_id", organizationId)
       .gte("starts_at", new Date().toISOString())
-      .in("status", ["scheduled", "active"])
+      // scheduled only: book_class rejects anything else ("not open for
+      // booking"), so showing an active class just hands the member an error.
+      .eq("status", "scheduled")
       .order("starts_at", { ascending: true })
       .limit(20),
   );

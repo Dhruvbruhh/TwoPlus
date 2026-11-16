@@ -216,7 +216,9 @@ Ready:
 - [x] No tracking SDKs, so the tracking declaration is a clean "no"
 - [x] Data-safety answers derived from the actual schema
 - [x] CI builds an APK and an iOS simulator build on every push, so a native
-      regression is caught before submission
+      regression is caught before submission; `mobile.yml` additionally gates
+      the member app itself (types, unit tests, a debug compile of a fresh
+      `expo prebuild`) on every change under `mobile/` or `supabase/migrations/`
 - [x] Host builds a signed Android APK and AAB from a keystore kept outside the
       repo (`android/keystore.properties`, gitignored). Both artifacts sit in
       `release/mobile/` with checksums; certificate `CN=TwoPlus`
