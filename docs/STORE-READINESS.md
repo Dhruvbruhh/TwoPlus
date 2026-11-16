@@ -226,9 +226,10 @@ Ready:
       (profile screen "Your data" section; `delete_my_account` RPC from
       migration 0016 + JSON export via the share sheet). Google's account
       deletion requirement for apps with account creation is met in code.
-      Release artifacts rebuilt 2026-11-16 from commit 192963d, which includes
+      Release artifacts rebuilt 2026-11-16 from commit b15fa70, which includes
       the deletion-flow review fixes (0016 phone placeholder, on-device wipe,
-      export parity); hashes in `BUILDING.md`. The RPC itself is still not live
+      export parity) and the scheduled-only class filter; hashes in
+      `BUILDING.md`. The RPC itself is still not live
       in production — applying migrations 0005+0016 is the owner procedure in
       `docs/MIGRATION-CHECKLIST.md`.
 
@@ -278,20 +279,23 @@ permission. Nothing
 was installed on a physical device: `adb devices` is empty, so the APK is verified
 as a signed package, not as a working install.
 
-**Member app** (current pair built 2026-11-16 from commit 192963d by the
+**Member app** (current pair built 2026-11-16 from commit b15fa70 by the
 documented short-path process; see `BUILDING.md` for the build recipe and the
 hash table of earlier pairs):
 
 | Artifact | Path | Size | SHA-256 |
 | --- | --- | --- | --- |
-| APK | `release/mobile/TwoPlus-1.0-android-member.apk` | 110,814,505 B | `4E73AE83361F9FDC4963FF7CF77409C8E84B6E89E6371D713976D4DF0E39E5EA` |
-| AAB | `release/mobile/TwoPlus-1.0-android-member.aab` | 75,748,404 B | `0B68BD444DA252B91ABAF29F2BC6172AE59A96616E88AE1C2AD6947A49AABEC6` |
+| APK | `release/mobile/TwoPlus-1.0-android-member.apk` | 110,814,489 B | `C991B9FA963230E2D4CFC623C59DF7F9ABF30779396747DBDA82D21CB2A3ADC3` |
+| AAB | `release/mobile/TwoPlus-1.0-android-member.aab` | 75,748,381 B | `B0F443089712D39F17107EA510B1D445611EFE7C157ECEBD2655D568FC83F637` |
 
-Same keystore family: APK verified with `apksigner` (v2 scheme), AAB with
-`jarsigner`/`keytool` (v1/JAR is the correct scheme for bundles); signer
-`CN=TwoPlus, OU=Mobile, O=TwoPlus, C=IN`, SHA-256 `4ea08dc0…eed7`. `aapt2 dump
+Same keystore family: APK verified with `apksigner` (v2 scheme only; v1/v3/v3.1/v4
+false), AAB with `jarsigner`/`keytool` (v1/JAR is the correct scheme for
+bundles); signer `CN=TwoPlus, OU=Mobile, O=TwoPlus, C=IN`, SHA-256
+`4ea08dc0…eed7`, certificate valid until 2054-03-22. `aapt2 dump
 badging` reports `fit.twoplus.member`, versionCode 1, versionName `1.0.0`,
-minSdk 24, targetSdk 36, and the permission set listed above. Neither artifact
+minSdk 24, targetSdk 36, and the permission set listed above (13 entries,
+identical to the previous pair; the AAB additionally declares `DUMP` from the
+bundle tooling). Neither artifact
 was installed on a device or uploaded anywhere.
 
 Remaining gaps: an IPA for either app needs macOS with Xcode, and both listings

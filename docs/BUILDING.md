@@ -122,19 +122,27 @@ photo-library permissions plus Google sign-in — the store declarations in
 own pass before submission.
 
 Rebuilt 2026-11-16 after the `RECORD_AUDIO`/`SYSTEM_ALERT_WINDOW` cleanup,
-after adding in-app data export + account deletion (commit 9b25284), and again
-after the deletion-flow review fixes (commit 192963d: 0016 phone placeholder,
-device wipe on sign-out/delete, export parity; see `STORE-READINESS.md`).
-Current copies in `release/mobile/`:
-`TwoPlus-1.0-android-member.apk` (110,814,505 bytes, SHA-256
-`4E73AE83361F9FDC4963FF7CF77409C8E84B6E89E6371D713976D4DF0E39E5EA`) and
-`TwoPlus-1.0-android-member.aab` (75,748,404 bytes, SHA-256
-`0B68BD444DA252B91ABAF29F2BC6172AE59A96616E88AE1C2AD6947A49AABEC6`). Verified:
-package `fit.twoplus.member` versionCode 1 / versionName 1.0.0 / targetSdk 36;
-v2 signature with the same `CN=TwoPlus, OU=Mobile, O=TwoPlus, C=IN` certificate
-(SHA-256 `4ea08dc003e2a31e749ce499ce8b8f5e6a20ae2870ebee9812270c94feaceed7`);
-AAB `jar verified` (JAR scheme); `RECORD_AUDIO` and `SYSTEM_ALERT_WINDOW`
-absent from both packaged manifests.
+after adding in-app data export + account deletion (commit 9b25284), after the
+deletion-flow review fixes (commit 192963d: 0016 phone placeholder, device wipe
+on sign-out/delete, export parity), and after the mobile CI workflow +
+scheduled-only class filter (commit b15fa70). The two previous member pairs,
+both superseded: APK 110,814,505 bytes / SHA-256 `4E73AE83361F9FDC4963FF7CF77409C8E84B6E89E6371D713976D4DF0E39E5EA`
+and AAB 75,748,404 bytes / `0B68BD444DA252B91ABAF29F2BC6172AE59A96616E88AE1C2AD6947A49AABEC6`
+(192963d); APK 110,812,793 / `26B23A9A901978B9E606E4698E8D1355320D089FF435604EE7C320E3686837EF`
+and AAB 75,747,538 / `A30517766DD52EE01155AAC36A3C28B1C89CA4F52B76F561727F3ED628C99B7C`
+(9b25284). Current copies in `release/mobile/`:
+`TwoPlus-1.0-android-member.apk` (110,814,489 bytes, SHA-256
+`C991B9FA963230E2D4CFC623C59DF7F9ABF30779396747DBDA82D21CB2A3ADC3`) and
+`TwoPlus-1.0-android-member.aab` (75,748,381 bytes, SHA-256
+`B0F443089712D39F17107EA510B1D445611EFE7C157ECEBD2655D568FC83F637`). Verified:
+package `fit.twoplus.member` versionCode 1 / versionName 1.0.0 / minSdk 24 /
+targetSdk 36; APK signed with the v2 scheme only (`apksigner verify --verbose`:
+v1/v3/v3.1/v4 false), signer `CN=TwoPlus, OU=Mobile, O=TwoPlus, C=IN`
+(SHA-256 `4ea08dc003e2a31e749ce499ce8b8f5e6a20ae2870ebee9812270c94feaceed7`,
+valid until 2054-03-22, unchanged keystore); AAB `jarsigner -verify` clean (JAR
+scheme) with the same certificate; the APK permission list is unchanged from
+the prior pair (13 entries); `RECORD_AUDIO` and `SYSTEM_ALERT_WINDOW` absent
+from both packaged manifests.
 
 Build-machine note: this project must be built from a short root path (e.g.
 `C:\tpm2`, a full robocopy of `mobile/`) with BOTH `android/app/build/` AND
