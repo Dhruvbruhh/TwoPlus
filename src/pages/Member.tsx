@@ -322,7 +322,11 @@ export default function Member() {
               if (!window.confirm("Delete this workout from your history?")) return
               void deleteWorkoutSession(id)
                 .then(() => setSessions((prev) => prev.filter((s) => s.id !== id)))
-                .catch(() => undefined)
+                .catch((err) => {
+                  // Optimistic removal already happened; on failure the row
+                  // comes back on reload, so the member must hear why.
+                  window.alert(err instanceof Error ? err.message : "Could not delete that workout")
+                })
             }}
           />
         </Section>
@@ -394,7 +398,11 @@ export default function Member() {
                 if (!window.confirm("Delete this progress photo permanently?")) return
                 void deleteProgressPhoto(photo)
                   .then(() => setPhotos((prev) => prev.filter((p) => p.id !== photo.id)))
-                  .catch(() => undefined)
+                  .catch((err) => {
+                    // Same as workout deletes: the optimistic row removal
+                    // undoes itself on reload, so surface the failure.
+                    window.alert(err instanceof Error ? err.message : "Could not delete that photo")
+                  })
               }}
             />
           )}

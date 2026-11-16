@@ -367,8 +367,14 @@ export default function App() {
         api.loadDashboardStats(org),
         api.listStaff(orgId),
         api.listEnquiries(orgId),
-        api.listOrgMembers(orgId).catch(() => []),
-        api.listNotifications(orgId).catch(() => []),
+        api.listOrgMembers(orgId).catch(() => {
+          notify("Staff names could not be loaded")
+          return []
+        }),
+        api.listNotifications(orgId).catch(() => {
+          notify("Notifications could not be loaded")
+          return []
+        }),
         api.loadMonthlyReports(orgId, 6),
       ])
 
@@ -476,30 +482,39 @@ export default function App() {
     }
     const orgId = org.organization.id
     let cancelled = false
+    // A failed subresource renders as an empty list, which reads as "no
+    // history"; surface it once instead of silently blanking the drawer.
+    let failed = false
+    const failOnce = () => {
+      if (!cancelled && !failed) {
+        failed = true
+        notify("Part of this member's history could not be loaded")
+      }
+    }
     api
       .listMemberAttendance(orgId, memberId, 10)
       .then((visits) => { if (!cancelled) setProfileVisits(visits) })
-      .catch(() => { if (!cancelled) setProfileVisits([]) })
+      .catch(() => { if (!cancelled) { setProfileVisits([]); failOnce() } })
     api
       .listPayments(orgId, { memberId, limit: 20 })
       .then((rows) => { if (!cancelled) setProfilePayments(rows) })
-      .catch(() => { if (!cancelled) setProfilePayments([]) })
+      .catch(() => { if (!cancelled) { setProfilePayments([]); failOnce() } })
     api
       .listMembershipsForMember(orgId, memberId)
       .then((rows) => { if (!cancelled) setProfileMemberships(rows) })
-      .catch(() => { if (!cancelled) setProfileMemberships([]) })
+      .catch(() => { if (!cancelled) { setProfileMemberships([]); failOnce() } })
     api
       .listRenewals(orgId, memberId, 10)
       .then((rows) => { if (!cancelled) setProfileRenewals(rows) })
-      .catch(() => { if (!cancelled) setProfileRenewals([]) })
+      .catch(() => { if (!cancelled) { setProfileRenewals([]); failOnce() } })
     api
       .listInternalNotes(orgId, memberId, 20)
       .then((rows) => { if (!cancelled) setProfileNotes(rows) })
-      .catch(() => { if (!cancelled) setProfileNotes([]) })
+      .catch(() => { if (!cancelled) { setProfileNotes([]); failOnce() } })
     api
       .listMeasurements(orgId, memberId, 10)
       .then((rows) => { if (!cancelled) setProfileMeasurements(rows) })
-      .catch(() => { if (!cancelled) setProfileMeasurements([]) })
+      .catch(() => { if (!cancelled) { setProfileMeasurements([]); failOnce() } })
     return () => { cancelled = true }
   }, [org, profile?.memberId, moduleTick])
 

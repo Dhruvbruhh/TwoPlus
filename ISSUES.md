@@ -141,6 +141,21 @@ The heading renders correctly (proven by direct DOM probe: one `main h1`, text
 dev server under `networkidle`. Left as-is deliberately: weakening the assertion
 would remove the check entirely.
 
+## S3 — Swallowed read/delete errors (fixed 2026-11-16)
+
+- **Where:** `src/App.tsx` (boot load, profile drawer) and
+  `src/pages/Member.tsx` (workout/photo deletes).
+- **Symptom:** transient failures rendered as honest-looking empty states —
+  staff names fell back to "Unassigned", the notification list and profile
+  history silently blanked, and optimistic deletes removed a row whose
+  deletion had actually failed (the record reappeared on reload with no
+  explanation).
+- **Fix:** failures now surface once through the existing toast/`window.alert`
+  paths while still rendering the empty list. Modal plan-detail loads
+  (`setPlanDetail(null)`) and the `getMyMember()` fallback
+  (`member-api.ts:348`) keep their silent catches deliberately: both have a
+  distinguishing signal elsewhere or fail into a harmless default.
+
 ---
 
 ## Closed during this audit
