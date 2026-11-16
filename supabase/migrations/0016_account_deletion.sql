@@ -7,7 +7,9 @@
 -- What is erased and what is kept is a deliberate split, not an oversight:
 --
 --   erased  identity fields on the member row (name, email, phone, date of
---           birth, gender, address, emergency contacts, notes), the sign-in,
+--           birth, gender, address, emergency contacts, notes; phone becomes
+--           '0000000000', the only value that satisfies NOT NULL plus the
+--           phone-shape check), the sign-in,
 --           workout sessions and sets, body measurements, progress photos and
 --           their stored objects, both plan assignments, class bookings,
 --           attendance, internal staff notes.
@@ -73,11 +75,14 @@ begin
     delete from public.member_internal_notes where member_id = v_member;
 
     -- Money stays, tied to a row that no longer identifies anyone.
+    -- phone is NOT NULL and 0006's members_phone_shape check runs on every
+    -- update, so the placeholder must match '^[0-9+() -]{6,20}$': '' would
+    -- abort the whole delete with a check-constraint error.
     update public.members
        set first_name = 'Deleted',
            last_name = '',
            email = null,
-           phone = '',
+           phone = '0000000000',
            date_of_birth = null,
            gender = null,
            address = null,

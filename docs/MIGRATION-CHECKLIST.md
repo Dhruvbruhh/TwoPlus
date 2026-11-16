@@ -1,0 +1,194 @@
+# Owner checklist — applying migrations 0005 and 0016
+
+Everything on this page is a production database write. Run it yourself, from
+your machine, when you have an hour and are not in a hurry. Nothing here has
+been executed by the repo side: the live database is untouched.
+
+**What this fixes.** `0005_member_photos.sql` adds the `members.photo_url`
+column — until it exists, saving a member photo fails (ISSUES.md S1). `0016_account_deletion.sql`
+adds the `delete_my_account()` RPC — until it exists, the member app's
+"Delete my account" button errors out, which is a Play policy failure once the
+app ships. Applying 0016 also closes the account-deletion loop the store
+checklist marks as met in code.
+
+**Why both in one session.** 0016 sets `photo_url = null` on the anonymised
+member row, so 0005 **must** land before 0016 or the delete RPC is created
+against a column that does not exist. The order below enforces that.
+
+**Why repair the history.** Only 3 of 16 migrations are recorded in
+`supabase_migrations.schema_migrations` (the rest were applied by hand), so
+`supabase db push` cannot know what is applied. The repair step below tells it,
+without running any SQL against the tables.
+
+Prerequisites on this host: a Supabase access token and the database password
+(Dashboard → Settings → Database). Set both in the same terminal session:
+
+```bash
+export SUPABASE_ACCESS_TOKEN='<token>'
+export PGPASSWORD='<database password>'
+```
+
+Postgres client tools are optional but recommended (backup step B uses them;
+`winget install PostgreSQL.PostgreSQL.16` provides `pg_dump`).
+
+---
+
+## A. Preflight (reads only)
+
+Work in `TwoPlus-repo/`. Confirm you are on a commit that contains the two
+migration files:
+
+```bash
+git pull
+git log --oneline -1 -- supabase/migrations/0005_member_photos.sql supabase/migrations/0016_account_deletion.sql
+```
+
+Confirm what the database actually has (2026-11-06 probes: both absent):
+
+```bash
+npx supabase migration list --linked
+```
+
+Expected: versions `0001`–`0003` marked applied, `0004`–`0016` not
+(the hand-applied tail is the history gap the repair step fixes).
+
+Optional direct probe of the two objects (SQL editor in the Dashboard):
+
+```sql
+select column_name from information_schema.columns
+ where table_schema = 'public' and table_name = 'members' and column_name = 'photo_url';
+-- expect 0 rows today
+
+select proname from pg_proc
+ where pronamespace = 'public'::regnamespace and proname = 'delete_my_account';
+-- expect 0 rows today
+```
+
+## B. Backup (required before any write)
+
+`docs/OPERATIONS.md` is the full runbook; the short form:
+
+```bash
+pg_dump "postgresql://postgres.qhxgqyzrzqxwvriugnya@aws-0-eu-west-1.pooler.supabase.com:5432/postgres" \
+  --schema=public --schema=auth --no-owner \
+  --format=custom --file=backup-$(date +%Y%m%d-%H%M).dump
+```
+
+Do not pass `--no-privileges` (it drops REVOKEs that are load-bearing — see
+OPERATIONS.md). Copy the dump off the machine. Storage objects are not in the
+dump; nothing in this migration set touches them, so a bucket copy is optional
+here but `docs/OPERATIONS.md` shows the command if you want the belt and braces.
+
+Record the dump path and its SHA-256 before continuing. If step D fails in a
+way step E cannot explain, this dump is the rollback.
+
+## C. Repair the migration history (metadata only)
+
+This writes rows into `supabase_migrations.schema_migrations` for the migrations
+that are already live but unrecorded. It runs no application SQL. Mark 0004
+through 0015 applied (they are: the REST probes on 2026-11-06 confirmed every
+table and column from 0004–0015 exists; the two genuine gaps are 0005 and 0016,
+which the push in step D applies for real):
+
+```bash
+npx supabase migration repair 0004 0006 0007 0008 0009 0010 0011 0012 0013 0014 0015 --status applied --linked
+```
+
+(0005 is deliberately absent: it is not applied, and step D must apply it.)
+
+Sanity-check the list again:
+
+```bash
+npx supabase migration list --linked
+```
+
+Expected: `0004`, `0006`–`0015` now applied; `0005` and `0016` not.
+
+If a repair line names a migration you believe is *not* live, stop — do not
+mark it. Re-run the preflight probe for that migration's objects first; a
+wrongly marked history is the exact failure mode this step exists to avoid.
+
+## D. Apply (the real write)
+
+```bash
+npx supabase db push --linked
+```
+
+This applies `0005_member_photos.sql` then `0016_account_deletion.sql`, in
+order. Both are idempotent (checked: `add column if not exists`,
+`create or replace function`, guarded grants), so a dropped connection can be
+re-run safely. Expect output naming exactly these two files.
+
+## E. Post-checks
+
+SQL editor, Dashboard, against the live project:
+
+```sql
+-- 1. the column and the function now exist
+select column_name from information_schema.columns
+ where table_schema = 'public' and table_name = 'members' and column_name = 'photo_url';
+-- expect 1 row: photo_url
+
+select proname, prosecdef from pg_proc
+ where pronamespace = 'public'::regnamespace and proname = 'delete_my_account';
+-- expect 1 row, prosecdef = true (security definer)
+
+-- 2. the grant went to authenticated only
+select grantee from information_schema.role_routine_grants
+ where specific_schema = 'public' and routine_name = 'delete_my_account';
+-- expect exactly one row: authenticated
+
+-- 3. the RLS rule from OPERATIONS.md still holds: no policy-less tables
+select c.relname, count(p.polname) as policies
+from pg_class c
+left join pg_policy p on p.polrelid = c.oid
+where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
+group by c.relname having count(p.polname) = 0;
+-- expect 0 rows
+
+-- 4. no member row was touched by this run
+select count(*) from public.members where photo_url is not null and status = 'archived';
+-- informational; expect whatever it was before (these migrations write no data)
+```
+
+Then, from the app, the two end-to-end proofs:
+
+1. **Web:** sign in as an owner, open a member, attach a photo URL, save. It
+   must save (this was the S1 failure).
+2. **Deletion RPC:** the safe test is a throwaway sign-in, not your own. Ask
+   the desk to create a test member with a unique email, claim it through the
+   member app sign-up, then run "Delete my account" from the profile screen.
+   Expect: the app signs you out, a Dashboard check shows the auth user gone,
+   and the member row shows `first_name = 'Deleted'`, `status = 'archived'`,
+   real `phone = '0000000000'` placeholder. Do **not** test with a gym-owner
+   sign-in: the RPC refuses owners by design, which is the correct outcome.
+
+## F. Rollback guidance
+
+- **0005** is additive only. Reversing it is `alter table public.members drop
+  column if exists photo_url;` in the SQL editor — but there is no reason to:
+  a nullable column that nothing fills is inert.
+- **0016** only creates a function. Reversing it is
+  `drop function if exists public.delete_my_account();` — again, no reason
+  unless a defect shows in post-check E.
+- **A delete that did the wrong thing** (a member deleted who should not have
+  been): this is the one case the dump is for. Follow `docs/OPERATIONS.md`
+  → "Restoring one deleted row": extract the member's tables from the step-B
+  dump with `pg_restore --data-only --table=...`, check FKs by hand, insert
+  back. The auth user must be re-created (auth rows restore from the same
+  dump's `auth.users` data).
+- **Do not** "roll back" by editing the migration files after they applied:
+  the CLI records file versions, and a changed hash breaks the next push. Fix
+  forward with migration `0017` if a defect ever appears.
+
+## G. Close the loop
+
+Update the tracked docs that record these items as open (this keeps the repo's
+claims true):
+
+- `ISSUES.md` — close the two S1 rows (photo save, migration history).
+- `MISSION.md` Phase 19 — tick the "two migrations written but not applied" row.
+- `docs/BACKLOG_TRIAGE.md` — D2, D3, D5 are now done.
+
+Then delete the two exports (`SUPABASE_ACCESS_TOKEN`, `PGPASSWORD`) from the
+shell session. Neither belongs in a profile file.

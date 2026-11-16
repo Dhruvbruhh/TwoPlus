@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
 import { useAsync } from "../../src/lib/useAsync";
-import { deleteMyAccount, exportMyData } from "../../src/lib/data";
+import { deleteMyAccount, exportMyData, wipeLocalMemberData } from "../../src/lib/data";
 import {
   addMeasurement,
   getAttendance,
@@ -329,8 +329,10 @@ function YourData() {
     void (async () => {
       try {
         await deleteMyAccount();
-        // Server-side delete also revokes the session; sign-out clears the
-        // local member state so the app returns to the login screen.
+        // The server-side delete also revokes the session. Clear what the
+        // device kept (offline cache, meals, water) before signing out, so
+        // the next account on a shared phone is never served this one's data.
+        await wipeLocalMemberData();
         await signOut();
       } catch (e) {
         Alert.alert("Could not delete", e instanceof Error ? e.message : "Something went wrong.");

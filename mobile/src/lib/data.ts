@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
 import { getMeals } from "./nutrition";
+import { CACHE_PREFIX } from "./useAsync";
 
 /**
  * Member-facing reads.
@@ -152,14 +153,14 @@ export async function getMemberships(memberId: string) {
   );
 }
 
-export async function getPayments(memberId: string) {
+export async function getPayments(memberId: string, limit = 24) {
   return many<Payment>(
     supabase
       .from("payments")
       .select("id, amount_minor, currency, method, status, paid_on, description")
       .eq("member_id", memberId)
       .order("paid_on", { ascending: false })
-      .limit(24),
+      .limit(limit),
   );
 }
 
@@ -174,7 +175,7 @@ export async function getAttendance(memberId: string, limit = 60) {
   );
 }
 
-export async function getMeasurements(memberId: string) {
+export async function getMeasurements(memberId: string, limit = 40) {
   return many<Measurement>(
     supabase
       .from("fitness_measurements")
@@ -183,7 +184,7 @@ export async function getMeasurements(memberId: string) {
       )
       .eq("member_id", memberId)
       .order("measured_on", { ascending: false })
-      .limit(40),
+      .limit(limit),
   );
 }
 
@@ -533,12 +534,18 @@ export function bmiOf(weightKg: number | null, heightCm: number | null) {
 
 /**
  * Your data: export and account deletion, the mobile twin of the web app's
- * Phase 18 section.
+ * Phase 18 section (src/lib/member-api.ts).
  *
- * Export gathers every structured record the member can read under RLS.
- * Progress photos are not included (they live in storage buckets, and the
- * mobile app has no photo list yet); the web export covers them.
+ * Export gathers every structured record the member can read under RLS, with
+ * the same 100,000-row ceiling the web export uses: a member asking for their
+ * data gets all of it, not the last page the screens show. Progress photos are
+ * not included (they live in storage buckets, and the mobile app has no photo
+ * list yet); the web export covers them.
  */
+
+/** Screen getters cap themselves for UI speed; an export must not. */
+const EXPORT_LIMIT = 100_000;
+
 export async function exportMyData(): Promise<string> {
   const { data: user } = await supabase.auth.getUser();
   if (!user.user) throw new Error("Not signed in");
@@ -551,31 +558,46 @@ export async function exportMyData(): Promise<string> {
   const [memberships, payments, attendance, measurements, sessions, plans, dietPlans, classes] =
     await Promise.all([
       getMemberships(memberId),
-      getPayments(memberId),
-      getAttendance(memberId, 500),
-      getMeasurements(memberId),
-      getRecentSessions(memberId, 500),
+      getPayments(memberId, EXPORT_LIMIT),
+      getAttendance(memberId, EXPORT_LIMIT),
+      getMeasurements(memberId, EXPORT_LIMIT),
+      getRecentSessions(memberId, EXPORT_LIMIT),
       getActiveWorkoutPlan(memberId),
       getActiveDietPlan(memberId),
       getMyBookings(memberId),
     ]);
 
-  // Sets are per-session, so one query per recent session; capped to keep the
-  // payload sane. AsyncStorage-only data (meals, water) is included too: it is
-  // the member's data even though it never reached the server.
-  const sets = await Promise.all(sessions.slice(0, 50).map((s) => getSets(s.id)));
+  // Sets ride along per session, the way the web export embeds them.
+  const withSets = await Promise.all(sessions.map((s) => getSets(s.id).then((sets) => ({ ...s, sets }))));
   const meals = await getMeals();
   const water = await getWaterLog();
 
   return JSON.stringify(
     {
       exported_on: new Date().toISOString(),
-      member,
+      // Curated, not select("*"): `notes` is what the desk wrote about the
+      // member, and the web export deliberately leaves it out for the same
+      // reason. On-device keys (meals, water) are included because the data
+      // is the member's even though it never reached the server.
+      profile: {
+        first_name: member.first_name,
+        last_name: member.last_name,
+        email: member.email,
+        phone: member.phone,
+        date_of_birth: member.date_of_birth,
+        gender: member.gender,
+        address: member.address,
+        emergency_contact_name: member.emergency_contact_name,
+        emergency_contact_phone: member.emergency_contact_phone,
+        member_code: member.member_code,
+        member_since: member.joined_on,
+        status: member.status,
+      },
       memberships,
       payments,
       attendance,
       measurements,
-      workout_sessions: sessions.map((s, i) => ({ ...s, sets: sets[i] })),
+      workout_sessions: withSets,
       workout_plan: plans,
       diet_plan: dietPlans,
       class_bookings: classes,
@@ -596,6 +618,22 @@ export async function deleteMyAccount(): Promise<{ member_erased: boolean; photo
   const { data, error } = await supabase.rpc("delete_my_account");
   if (error) throw new Error(error.message || "Could not delete your account");
   return data as { member_erased: boolean; photos_removed: number };
+}
+
+/**
+ * Everything this device keeps about a member: the offline cache screens fall
+ * back to, the meal and water logs, and (web builds) the session copy. The
+ * auth session itself lives in SecureStore or web localStorage and is cleared
+ * by supabase.auth.signOut(); this clears the rest, so the next person who
+ * opens the app on a shared phone cannot be served the previous member's
+ * cached history offline.
+ */
+export async function wipeLocalMemberData() {
+  const keys = await AsyncStorage.getAllKeys();
+  const mine = keys.filter(
+    (k) => k === "twoplus.water" || k === "twoplus.meals" || k.startsWith(CACHE_PREFIX),
+  );
+  if (mine.length) await AsyncStorage.multiRemove(mine);
 }
 
 export function formatMoney(minor: number, currency = "INR") {

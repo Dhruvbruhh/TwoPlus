@@ -20,7 +20,22 @@ Severity: **S1** breaks a user flow · **S2** wrong behaviour in an edge case ·
 - **Fix:** `alter table public.members add column if not exists photo_url text;`
   (idempotent, additive, touches no existing data).
 - **Not fixed because:** it is a write to the live production database and
-  requires explicit owner approval.
+  requires explicit owner approval. Owner procedure: `docs/MIGRATION-CHECKLIST.md`.
+
+## S1 — `delete_my_account()` would abort on the phone-shape constraint
+
+- **Where:** `supabase/migrations/0016_account_deletion.sql:79` (found by review
+  2026-11-16, before the migration was ever applied).
+- **Symptom:** every real member's "Delete my account" would fail with a check
+  constraint error and delete nothing: 0006's `members_phone_shape`
+  (`phone ~ '^[0-9+() -]{6,20}$'`, NOT VALID but enforced on writes) rejects the
+  empty string the anonymisation step wrote. The dry-runs passed because they
+  ran against an empty members table.
+- **Fix:** applied in the migration file — the placeholder is now
+  `'0000000000'`, which satisfies the check. Safe to fix in place because the
+  migration has never been applied to the live database.
+- **Owner action still required:** apply the migration per
+  `docs/MIGRATION-CHECKLIST.md`.
 
 ## S1 — Migration history is inaccurate on the live database
 

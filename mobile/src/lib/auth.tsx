@@ -10,6 +10,7 @@ import { Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { wipeLocalMemberData } from "./data";
 
 /**
  * The member row behind a signed-in account.
@@ -186,6 +187,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
+    // The offline cache and on-device logs belong to the member, not the
+    // phone: a shared device must not serve them to the next sign-in.
+    await wipeLocalMemberData();
     setMember(null);
   }, []);
 

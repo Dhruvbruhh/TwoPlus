@@ -31,12 +31,14 @@ handled differently from the rest:
   within minutes and a leaked one after that; the cache stores everything else
   about a member and deliberately skips these.
 
+## Retention
+
 ## A member deleting their account
 
 Implemented in `supabase/migrations/0016_account_deletion.sql` as
-`delete_my_account()`, called from the member app's "Your data" section. It is a
-`security definer` function, granted to `authenticated` only, and it refuses to
-run without a session.
+`delete_my_account()`, called from the member app's "Your data" section (both
+the web app and the mobile app). It is a `security definer` function, granted to
+`authenticated` only, and it refuses to run without a session.
 
 **Refused for gym owners.** The organization references its owner with
 `on delete restrict`. An owner who deletes their sign-in would orphan a live gym,
@@ -60,9 +62,14 @@ For everyone else, in one transaction:
 | The `auth.users` row and every session | |
 
 The member row itself is kept in anonymised form (`first_name = 'Deleted'`,
-`status = 'archived'`, every identifying field null, `user_id` cleared) because
-payments point at it. That row is a ledger anchor, not a person: it no longer
-carries anything that identifies anyone.
+`status = 'archived'`, every identifying field null, `user_id` cleared; `phone`
+becomes `'0000000000'`, the only value satisfying NOT NULL plus the phone-shape
+check) because payments point at it. That row is a ledger anchor, not a person:
+it no longer carries anything that identifies anyone.
+
+On the member's device, deletion (and plain sign-out) also clears the local
+stores: the offline cache, the meal log and the water log. A shared phone never
+serves one member's data to the next.
 
 The asymmetry is the point. A gym has a lawful reason to keep its books. It has
 no reason to keep a former member's body photos.
@@ -86,12 +93,18 @@ scheduled job this repo does not have.
 
 ## Export
 
-The member app's "Download my data" produces one JSON file containing the
-member's profile, memberships, payments, attendance, workouts, assigned workout
-and diet plans, measurements and progress-photo metadata. Signed photo URLs are
-stripped before the file is written, because a URL that expires in ten minutes
-is not data the member can keep. The photos themselves are downloadable
-individually while signed in.
+The web member app's "Download my data" produces one JSON file containing the
+member's profile, memberships, payments, attendance, workouts with their sets,
+assigned workout and diet plans, measurements and progress-photo metadata.
+Signed photo URLs are stripped before the file is written, because a URL that
+expires in ten minutes is not data the member can keep. The photos themselves
+are downloadable individually while signed in.
+
+The mobile member app's "Export my data" produces the same JSON through the
+share sheet: same tables, same 100,000-row ceiling, sets embedded per session.
+It adds what lives only on the device (the meal and water logs) and omits
+progress photos, which the mobile app has no photo list for yet. The profile
+section is curated, so the desk-authored `notes` field stays out of the file.
 
 Export is capped at 100,000 rows per table. That is above any plausible single
 member's history, and the cap exists so a runaway query cannot exhaust the

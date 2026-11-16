@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cacheGet, cachePut } from "./offline";
 
+/** Every AsyncStorage key the offline fallback writes: `twoplus.cache:<screen>`. */
+export const CACHE_PREFIX = "twoplus.cache:";
+
 /**
  * One loader shape for every screen: data, error, initial spinner, pull-to-
  * refresh. Screens differ in what they fetch, not in how they show fetching.

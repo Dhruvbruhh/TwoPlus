@@ -1,0 +1,60 @@
+/**
+ * The device-side privacy rules: what an export includes, what a wipe removes.
+ * Run with: npx tsx --test tests/*.test.mjs
+ */
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const dataSrc = readFileSync(new URL("../src/lib/data.ts", import.meta.url), "utf8");
+const useAsyncSrc = readFileSync(new URL("../src/lib/useAsync.ts", import.meta.url), "utf8");
+const authSrc = readFileSync(new URL("../src/lib/auth.tsx", import.meta.url), "utf8");
+const profileSrc = readFileSync(new URL("../app/(tabs)/profile.tsx", import.meta.url), "utf8");
+const migration = readFileSync(
+  new URL("../../supabase/migrations/0016_account_deletion.sql", import.meta.url),
+  "utf8",
+);
+
+test("export: the raw member row is not dumped, notes stays out", () => {
+  assert.match(dataSrc, /profile:\s*\{/);
+  assert.doesNotMatch(dataSrc, /^\s*member,\s*$/m);
+  assert.match(dataSrc, /Curated, not select/);
+});
+
+test("export: every list goes through EXPORT_LIMIT, not the screen caps", () => {
+  assert.match(dataSrc, /EXPORT_LIMIT = 100_000/);
+  assert.match(dataSrc, /getPayments\(memberId, EXPORT_LIMIT\)/);
+  assert.match(dataSrc, /getAttendance\(memberId, EXPORT_LIMIT\)/);
+  assert.match(dataSrc, /getMeasurements\(memberId, EXPORT_LIMIT\)/);
+  assert.match(dataSrc, /getRecentSessions\(memberId, EXPORT_LIMIT\)/);
+});
+
+test("export: sets are embedded per session, no slice cap", () => {
+  assert.match(dataSrc, /sessions\.map\(\(s\) => getSets\(s\.id\)/);
+  assert.doesNotMatch(dataSrc, /sessions\.slice\(0,\s*50\)/);
+});
+
+test("wipe: covers the offline cache prefix and both on-device logs", () => {
+  assert.match(useAsyncSrc, /export const CACHE_PREFIX = "twoplus\.cache:"/);
+  assert.match(dataSrc, /k\.startsWith\(CACHE_PREFIX\)/);
+  assert.match(dataSrc, /"twoplus\.water"/);
+  assert.match(dataSrc, /"twoplus\.meals"/);
+  assert.match(dataSrc, /multiRemove/);
+});
+
+test("wipe: runs on sign-out and before sign-out on deletion", () => {
+  assert.match(authSrc, /await wipeLocalMemberData\(\)/);
+  const deleteIdx = profileSrc.indexOf("await deleteMyAccount()");
+  const wipeIdx = profileSrc.indexOf("await wipeLocalMemberData()");
+  const signOutIdx = profileSrc.indexOf("await signOut()");
+  assert.ok(wipeIdx > deleteIdx, "wipe must run after the RPC");
+  assert.ok(signOutIdx > wipeIdx, "wipe must run before signOut");
+});
+
+test("migration 0016: the anonymised phone value satisfies its own check", () => {
+  // The constraint from 0006 applies to every update; '' fails it.
+  assert.match(migration, /phone = '0000000000'/);
+  assert.doesNotMatch(migration, /phone = ''/);
+  assert.match("0000000000".replace(/^.*$/, "x"), /x/);
+  assert.ok(/^[0-9+() -]{6,20}$/.test("0000000000"), "placeholder must pass members_phone_shape");
+});
