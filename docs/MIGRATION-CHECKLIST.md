@@ -1,4 +1,4 @@
-# Owner checklist — applying migrations 0005 and 0016
+# Owner checklist — applying migrations 0005, 0016 and 0017
 
 Everything on this page is a production database write. Run it yourself, from
 your machine, when you have an hour and are not in a hurry. Nothing here has
@@ -9,13 +9,18 @@ column — until it exists, saving a member photo fails (ISSUES.md S1). `0016_ac
 adds the `delete_my_account()` RPC — until it exists, the member app's
 "Delete my account" button errors out, which is a Play policy failure once the
 app ships. Applying 0016 also closes the account-deletion loop the store
-checklist marks as met in code.
+checklist marks as met in code. `0017_member_policy_fixes.sql` repairs four
+member-facing RLS gaps found in review: the missing member photo
+insert/delete policy, the `workout_sessions` update policy, the
+`class_bookings` cancel with-check, and trainer attendance updates.
 
-**Why both in one session.** 0016 sets `photo_url = null` on the anonymised
-member row, so 0005 **must** land before 0016 or the delete RPC is created
-against a column that does not exist. The order below enforces that.
+**Why all three in one session.** 0016 sets `photo_url = null` on the
+anonymised member row, so 0005 **must** land before 0016 or the delete RPC is
+created against a column that does not exist. 0017 has no ordering
+dependency but belongs to the same window: none of the three is applied yet.
+The order below enforces that.
 
-**Why repair the history.** Only 3 of 16 migrations are recorded in
+**Why repair the history.** Only 3 of 17 migrations are recorded in
 `supabase_migrations.schema_migrations` (the rest were applied by hand), so
 `supabase db push` cannot know what is applied. The repair step below tells it,
 without running any SQL against the tables.
@@ -87,14 +92,15 @@ way step E cannot explain, this dump is the rollback.
 This writes rows into `supabase_migrations.schema_migrations` for the migrations
 that are already live but unrecorded. It runs no application SQL. Mark 0004
 through 0015 applied (they are: the REST probes on 2026-11-06 confirmed every
-table and column from 0004–0015 exists; the two genuine gaps are 0005 and 0016,
-which the push in step D applies for real):
+table and column from 0004–0015 exists; the genuine gaps are 0005, 0016 and
+0017, which the push in step D applies for real):
 
 ```bash
 npx supabase migration repair 0004 0006 0007 0008 0009 0010 0011 0012 0013 0014 0015 --status applied --linked
 ```
 
-(0005 is deliberately absent: it is not applied, and step D must apply it.)
+(0005, 0016 and 0017 are deliberately absent: none is applied, and step D must
+apply them.)
 
 Sanity-check the list again:
 
@@ -102,7 +108,7 @@ Sanity-check the list again:
 npx supabase migration list --linked
 ```
 
-Expected: `0004`, `0006`–`0015` now applied; `0005` and `0016` not.
+Expected: `0004`, `0006`–`0015` now applied; `0005`, `0016`, `0017` not.
 
 If a repair line names a migration you believe is *not* live, stop — do not
 mark it. Re-run the preflight probe for that migration's objects first; a
@@ -114,10 +120,11 @@ wrongly marked history is the exact failure mode this step exists to avoid.
 npx supabase db push --linked
 ```
 
-This applies `0005_member_photos.sql` then `0016_account_deletion.sql`, in
-order. Both are idempotent (checked: `add column if not exists`,
-`create or replace function`, guarded grants), so a dropped connection can be
-re-run safely. Expect output naming exactly these two files.
+This applies `0005_member_photos.sql`, then `0016_account_deletion.sql`, then
+`0017_rls_member_fixes.sql`, in order. All three are idempotent (checked:
+`add column if not exists`, `create or replace function`, guarded grants and
+`drop policy if exists` before create), so a dropped connection can be re-run
+safely. Expect output naming exactly these three files.
 
 ## E. Post-checks
 
@@ -132,6 +139,15 @@ select column_name from information_schema.columns
 select proname, prosecdef from pg_proc
  where pronamespace = 'public'::regnamespace and proname = 'delete_my_account';
 -- expect 1 row, prosecdef = true (security definer)
+
+-- 1b. the 0017 member policies exist (six repaired policies)
+select tablename, policyname from pg_policy
+ where schemaname = 'public'
+   and policyname in ('progress photos insert self', 'progress photos delete self',
+                      'workout sessions update own', 'measurements update self',
+                      'bookings cancel own', 'attendance update')
+ order by tablename, policyname;
+-- expect 6 rows
 
 -- 2. the grant went to authenticated only
 select grantee from information_schema.role_routine_grants
@@ -171,6 +187,9 @@ Then, from the app, the two end-to-end proofs:
 - **0016** only creates a function. Reversing it is
   `drop function if exists public.delete_my_account();` — again, no reason
   unless a defect shows in post-check E.
+- **0017** only alters policies. Reversing it means restoring the previous
+  policy definitions from git history (`git show 475fea7:supabase/migrations/...`
+  for the pre-fix state) — no reason unless a post-check fails.
 - **A delete that did the wrong thing** (a member deleted who should not have
   been): this is the one case the dump is for. Follow `docs/OPERATIONS.md`
   → "Restoring one deleted row": extract the member's tables from the step-B
@@ -179,7 +198,7 @@ Then, from the app, the two end-to-end proofs:
   dump's `auth.users` data).
 - **Do not** "roll back" by editing the migration files after they applied:
   the CLI records file versions, and a changed hash breaks the next push. Fix
-  forward with migration `0017` if a defect ever appears.
+  forward with a new migration `0018` if a defect ever appears.
 
 ## G. Close the loop
 
@@ -187,7 +206,8 @@ Update the tracked docs that record these items as open (this keeps the repo's
 claims true):
 
 - `ISSUES.md` — close the two S1 rows (photo save, migration history).
-- `MISSION.md` Phase 19 — tick the "two migrations written but not applied" row.
+- `MISSION.md` Phase 19 — tick the "migrations written but not applied" row
+  (it now lists 0005, 0016 and 0017).
 - `docs/BACKLOG_TRIAGE.md` — D2, D3, D5 are now done.
 
 Then delete the two exports (`SUPABASE_ACCESS_TOKEN`, `PGPASSWORD`) from the

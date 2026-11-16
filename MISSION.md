@@ -244,14 +244,20 @@ marked done from intent.
 ## Phase 19 — Production readiness
 
 - [x] Database migrations applied and verified.
-- [!] Two migrations are written but **not applied**: `0005_member_photos.sql`
-  (the `members.photo_url` column) and `0016_account_deletion.sql`
-  (`delete_my_account()`). Verified against the live database on 2026-11-05:
-  `photo_url` absent, `delete_my_account` absent, and only 3 of 16 migrations
-  recorded in `supabase_migrations.schema_migrations`. Both dry-run cleanly inside
-  a rolled-back transaction. Consequence today: saving a member photo fails and
-  the member app's "delete my account" cannot work. **Human action:** apply both,
-  then backfill the migration history.
+- [!] Three migrations are written but **not applied**: `0005_member_photos.sql`
+  (the `members.photo_url` column), `0016_account_deletion.sql`
+  (`delete_my_account()`), and `0017_rls_member_fixes.sql` (six repaired member
+  RLS policies: progress-photo insert/delete, workout-session update,
+  measurement update, booking cancel, attendance update). Verified against the
+  live database on 2026-11-05: `photo_url` absent, `delete_my_account` absent,
+  and only 3 of 16 migrations recorded in
+  `supabase_migrations.schema_migrations` (0017 post-dates that probe and is
+  unapplied by construction). 0005 and 0016 dry-run cleanly inside a
+  rolled-back transaction. Consequence today: saving a member photo fails, the
+  member app's "delete my account" cannot work, and member-side writes the 0017
+  policies fix are rejected or silently no-oped (trainer check-out, receptionist
+  measurement edits). **Human action:** apply all three, then backfill the
+  migration history — procedure in `docs/MIGRATION-CHECKLIST.md`.
 - [x] HTTPS/domain/CSP in place.
 - [!] Backups verified restorable: **rehearsed once, not scheduled**. `docs/OPERATIONS.md` has the full procedure (pg_dump through the session pooler with `--schema=public --schema=auth`, storage objects separately, restore into a scratch project, four verification queries including the member→`auth.users` orphan count that must be zero, then signing in as a real owner and a real member). Executed 2026-11-04 into scratch project `lmhpbpalgcbccbyybemt` and it passed: 38/38 tables, zero row-count mismatches, 108 policies and 266 grants survived, no orphaned members, and policy scoping confirmed by impersonating real users. The rehearsal found three defects in the runbook — `--no-privileges` silently dropped the REVOKEs, splitting schema and data broke foreign-key ordering, and `--disable-triggers` cannot work without superuser — all fixed. Evidence in `docs/RESTORE-REHEARSAL.md`. **Remaining human action:** put the dump on a schedule and repeat the rehearsal after schema changes; storage objects are not in the dump at all.
 - [x] Monitoring and error tracking. There is no third-party tracker and none is pretended: `admin_platform_metrics()` (migration 0002, security definer, `search_path=''`, `42501` unless `is_platform_admin()`) returns `error_monitoring` hardcoded to `not configured`, and the SuperAdmin *System health* panel renders that verbatim beside Database and Server time. What was missing was in-app failure handling, which is now real: `src/components/ErrorBoundary.tsx` wraps the whole tree in `src/main.tsx`, so a render error shows a message, the thrown text, and Reload / Go to sign in instead of a blank page; it logs to the console and keeps a five-entry ring exposed as `recentErrors()`, which is the hook a tracker would attach to. Verified: `npx tsc -b` exit 0, `npm run build` exit 0 (4.07s), `npx playwright test tests/error-boundary.spec.tsx` 3 passed.
