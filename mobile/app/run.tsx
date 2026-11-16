@@ -33,6 +33,8 @@ export default function RunScreen() {
   const stopWatch = useCallback(() => {
     watchRef.current?.remove();
     watchRef.current = null;
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
   }, []);
 
   useEffect(() => stopWatch, [stopWatch]);
@@ -69,6 +71,10 @@ export default function RunScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
   }, []);
+
+  // stopWatch clears both the location watch and the 1-second tick; clearTimer
+  // is kept separate so stop() can halt the timer before the save attempt
+  // without giving up GPS updates it no longer needs anyway.
 
   const stop = useCallback(async () => {
     clearTimer();

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAsync } from "../../src/lib/useAsync";
 import { addWater, getMeasurements, getRecentSessions, getWaterLog } from "../../src/lib/data";
 import { useAuth } from "../../src/lib/auth";
+import { dayKey } from "../../src/lib/format";
 import {
   ACTIVITY_LEVELS,
   bmi,
@@ -83,7 +84,7 @@ export default function ToolsScreen() {
   }, [runKm, runMin]);
 
   // Water: today's total against the 35 ml/kg target, +500 on training days.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = dayKey();
   const waterToday = state.data?.water?.[today] ?? 0;
   const trainedToday = (state.data?.sessions ?? []).some((s) => s.performed_on === today && s.completed_at);
   const waterGoal = waterTargetMl(latest?.weight_kg != null ? Number(latest.weight_kg) : null, trainedToday);

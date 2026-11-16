@@ -20,6 +20,7 @@ import {
   type MealEntry,
 } from "../../src/lib/nutrition";
 import { useAuth } from "../../src/lib/auth";
+import { dayKey } from "../../src/lib/format";
 import {
   Button,
   Card,
@@ -56,7 +57,7 @@ export default function NutritionScreen() {
 
   const state = useAsync(
     async () => {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = dayKey();
       const [meals, history, water, sessions, measurements] = await Promise.all([
         getMealsForDay(today),
         getMealHistory(14),
@@ -77,7 +78,7 @@ export default function NutritionScreen() {
   const view = useMemo(() => {
     const d = state.data;
     if (!d) return null;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = dayKey();
     const totals = totalsOf(d.meals.flatMap((m) => m.items));
     const trainedToday = d.sessions.some((s) => s.performed_on === today && s.completed_at);
     const target = calorieTarget(trainedToday);
@@ -116,7 +117,7 @@ export default function NutritionScreen() {
     await state.refresh();
   };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = dayKey();
 
   return (
     <Screen
@@ -320,9 +321,9 @@ function hasAi(meal: MealEntry) {
 
 function dayLabel(day: string) {
   const d = new Date(`${day}T12:00:00`);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = dayKey();
   if (day === today) return "Today";
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const yesterday = dayKey(new Date(Date.now() - 86400000));
   if (day === yesterday) return "Yesterday";
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }

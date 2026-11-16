@@ -1,3 +1,5 @@
+import { dayKey } from "./format";
+
 /**
  * Deterministic coach insights.
  *
@@ -15,7 +17,7 @@ export function coachInsights(input: {
   hasPlan: boolean;
 }): Insight[] {
   const out: Insight[] = [];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = dayKey();
 
   // Weight trend: needs two points and at least half a kilo to be a trend,
   // not scale noise.

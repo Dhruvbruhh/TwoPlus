@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
 import { getMeals } from "./nutrition";
 import { CACHE_PREFIX } from "./useAsync";
+import { dayKey } from "./format";
 
 /**
  * Member-facing reads.
@@ -317,7 +318,7 @@ export async function startSession(input: {
   planId: string | null;
   assignmentId?: string | null;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = dayKey();
   const existing = await many<WorkoutSession>(
     supabase
       .from("workout_sessions")
@@ -427,7 +428,7 @@ export async function getWaterLog(): Promise<Record<string, number>> {
   }
 }
 
-export async function addWater(ml: number, day = new Date().toISOString().slice(0, 10)) {
+export async function addWater(ml: number, day = dayKey()) {
   const log = await getWaterLog();
   log[day] = Math.max(0, (log[day] ?? 0) + ml);
   await AsyncStorage.setItem("twoplus.water", JSON.stringify(log));
@@ -435,7 +436,7 @@ export async function addWater(ml: number, day = new Date().toISOString().slice(
 }
 
 export async function getWaterToday() {
-  return (await getWaterLog())[new Date().toISOString().slice(0, 10)] ?? 0;
+  return (await getWaterLog())[dayKey()] ?? 0;
 }
 
 /**
@@ -455,7 +456,7 @@ export async function addMeasurement(input: {
       .insert({
         member_id: input.memberId,
         organization_id: input.organizationId,
-        measured_on: new Date().toISOString().slice(0, 10),
+        measured_on: dayKey(),
         weight_kg: input.weightKg,
         height_cm: input.heightCm ?? null,
         notes: input.notes?.slice(0, 500) ?? null,
@@ -483,7 +484,7 @@ export async function saveRun(input: {
   durationMinutes: number;
   note: string;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = dayKey();
   const existing = await many<WorkoutSession & { note: string | null }>(
     supabase
       .from("workout_sessions")

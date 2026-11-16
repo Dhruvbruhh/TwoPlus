@@ -19,7 +19,7 @@ import {
   bmiOf,
   formatMoney,
 } from "../../src/lib/data";
-import { clockTime, daysLeft, greeting, shortDate, streakFrom } from "../../src/lib/format";
+import { clockTime, dayKey, daysLeft, greeting, shortDate, streakFrom } from "../../src/lib/format";
 import { dailyMissions, progressionFrom, XP_SESSION, XP_VISIT } from "../../src/lib/progression";
 import { waterTargetMl } from "../../src/lib/fitness";
 import {
@@ -77,7 +77,7 @@ export default function HomeScreen() {
     const active = d.memberships.find((m) => m.status === "active") ?? d.memberships[0] ?? null;
     const left = active ? daysLeft(active.end_date) : null;
 
-    const monthKey = new Date().toISOString().slice(0, 7);
+    const monthKey = dayKey().slice(0, 7);
     const visitsThisMonth = d.attendance.filter((a) => a.check_in.slice(0, 7) === monthKey).length;
 
     const latest = d.measurements[0] ?? null;
@@ -91,7 +91,7 @@ export default function HomeScreen() {
     const nextClass = d.classes[0] ?? null;
 
     // Engagement: derived from the same records the rest of the app uses.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = dayKey();
     const completedDays = d.sessions
       .filter((s) => s.completed_at != null)
       .map((s) => s.performed_on);

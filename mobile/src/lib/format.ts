@@ -28,6 +28,20 @@ export function clockTime(value: string | null | undefined) {
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
+/**
+ * The member's calendar day, "YYYY-MM-DD", in device-local time.
+ *
+ * Every day-keyed log (meals, water, sessions, measurements) uses this instead
+ * of `toISOString().slice(0, 10)`, which is the UTC date: for the gym's
+ * IST timezone that flips everything logged between 00:00 and 05:30 local
+ * onto the previous day, resetting the water ring and misfiling meals.
+ */
+export function dayKey(date = new Date()) {
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${m}-${d}`;
+}
+
 /** Whole days from `from` to `to`, floored. Negative when `to` is in the past. */
 export function daysBetween(from: string | Date, to: string | Date) {
   const a = typeof from === "string" ? new Date(from) : from;
@@ -50,15 +64,15 @@ export function daysLeft(endDate: string | null) {
 export function streakFrom(checkIns: string[]) {
   const days = new Set(checkIns.map((iso) => iso.slice(0, 10)));
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const yesterday = new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
+  const today = dayKey(now);
+  const yesterday = dayKey(new Date(now.getTime() - 86_400_000));
 
   if (!days.has(today) && !days.has(yesterday)) return 0;
 
   let cursor = days.has(today) ? now : new Date(now.getTime() - 86_400_000);
   let count = 0;
   for (let i = 0; i < 400; i++) {
-    const key = cursor.toISOString().slice(0, 10);
+    const key = dayKey(cursor);
     if (!days.has(key)) break;
     count++;
     cursor = new Date(cursor.getTime() - 86_400_000);

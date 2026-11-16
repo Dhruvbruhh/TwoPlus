@@ -81,6 +81,10 @@ export default function ScanScreen() {
             : "AI analysis is not set up yet. Add the items manually - they save the same way.",
         );
       }
+    } catch {
+      // Network or endpoint failure: keep the photo, tell the member, manual
+      // entry still saves the same way.
+      setNote("Analysis failed. Add the items manually - they save the same way.");
     } finally {
       setBusy(false);
     }

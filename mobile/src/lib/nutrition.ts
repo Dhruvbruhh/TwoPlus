@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { dayKey } from "./format";
 
 /**
  * Food diary. Kept on-device like the water log: meals are personal, per-tap
@@ -68,18 +69,18 @@ export async function getMeals(): Promise<Record<string, MealEntry[]>> {
   }
 }
 
-export async function getMealsForDay(day = new Date().toISOString().slice(0, 10)) {
+export async function getMealsForDay(day = dayKey()) {
   return (await getMeals())[day] ?? [];
 }
 
-export async function addMeal(entry: MealEntry, day = new Date().toISOString().slice(0, 10)) {
+export async function addMeal(entry: MealEntry, day = dayKey()) {
   const all = await getMeals();
   all[day] = [...(all[day] ?? []), entry];
   await AsyncStorage.setItem("twoplus.meals", JSON.stringify(all));
   return all[day];
 }
 
-export async function deleteMeal(id: string, day = new Date().toISOString().slice(0, 10)) {
+export async function deleteMeal(id: string, day = dayKey()) {
   const all = await getMeals();
   all[day] = (all[day] ?? []).filter((m) => m.id !== id);
   await AsyncStorage.setItem("twoplus.meals", JSON.stringify(all));
@@ -91,7 +92,7 @@ export async function updateMealItem(
   mealId: string,
   index: number,
   next: Partial<FoodItem>,
-  day = new Date().toISOString().slice(0, 10),
+  day = dayKey(),
 ) {
   const all = await getMeals();
   const meals = all[day] ?? [];

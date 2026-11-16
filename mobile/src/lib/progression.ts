@@ -12,6 +12,8 @@
  * single day is honest, not double-paid.
  */
 
+import { dayKey } from "./format";
+
 export const LEVELS = [
   { name: "Beginner", floor: 0 },
   { name: "Rising", floor: 500 },
@@ -42,7 +44,7 @@ export function progressionFrom(input: {
   /** Today, so the cap logic is testable. Defaults to now. */
   today?: string;
 }): Progression {
-  const today = input.today ?? new Date().toISOString().slice(0, 10);
+  const today = input.today ?? dayKey();
 
   // Union of days with at least one qualifying event, per the per-day cap.
   const days = new Set<string>([...input.completedSessionDays, ...input.visitDays]);
