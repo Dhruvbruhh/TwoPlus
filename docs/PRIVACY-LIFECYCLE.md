@@ -12,6 +12,7 @@ claim. Where the two differ, the code wins and this file is wrong.
 | Supabase Auth | Email, password hash, session | The account itself |
 | Storage bucket `member-progress` | Progress photos | Private; the member and their gym's staff |
 | Browser `localStorage` | Member app cache (`twoplus-cache:v1:*`) and the offline outbox (`twoplus-outbox:v1`) | That device only |
+| Device AsyncStorage (mobile app) | Offline screen cache (`twoplus.cache:*`), meal log (`twoplus.meals`), water log (`twoplus.water`); auth session in SecureStore (`twoplus.session`) | That device only; wiped on sign-out and account deletion |
 
 Nothing else is collected. There is no analytics SDK, no advertising identifier,
 no crash reporter and no third-party script in the bundle. `docs/STORE-READINESS.md`
@@ -30,8 +31,6 @@ handled differently from the rest:
 - Photos are **never cached offline**. A cached signed URL would be a dead link
   within minutes and a leaked one after that; the cache stores everything else
   about a member and deliberately skips these.
-
-## Retention
 
 ## A member deleting their account
 
