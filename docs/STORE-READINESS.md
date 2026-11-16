@@ -152,7 +152,8 @@ member record, subject to the retention notes in `docs/PRIVACY-LIFECYCLE.md`.
 
 | Asset | Status | Note |
 | --- | --- | --- |
-| App icon 1024 | ready | same mark as the desktop ICO, generated from `public/favicon.svg` (shell). The member app's icon comes from `mobile/assets/` — confirm which listing gets which |
+| App icon 1024 | ready | same mark as the desktop ICO, generated from `public/favicon.svg` (shell). The member app's icon comes from `mobile/assets/` - confirm which listing gets which |
+| Listing icon 512x512 | ready | `node scripts/make-listing-icon.mjs` downscales `mobile/assets/icon.png` (the member app's real mark) to `release/store/listing-icon-512x512.png`; output verified 512x512 PNG, mean channel delta <=0.2/255 vs a reference downscale |
 | Feature graphic (1024x500) | ready | `brand/feature-graphic.svg` (maintainable source: disc + H geometry and colours measured from `mobile/assets/icon.png`, Inter wordmark from the app's font); exported with `node scripts/make-feature-graphic.mjs` to `release/store/feature-graphic-1024x500.png` (1024x500, RGBA). Re-export after editing the SVG |
 | Owner-workspace screenshots | prepared | `screenshots/board-390-*.png` are real captures at 390x844 of the workspace. Play Store needs a phone set and a separate tablet set; App Store needs 1290x2796 and 1242x2688 |
 | Member-app screenshots | blocked | `scripts/storeshots.mjs` captures the **web dashboard's `/member` view**, not the Expo member app — usable only if the shell's member view is ever listed. Real member-app listing screenshots must come from the Expo app (device/emulator captures, or Playwright against the Metro web build at 1080x1920 / 1600x2560 / 1290x2796 / 1242x2688). None exist yet |

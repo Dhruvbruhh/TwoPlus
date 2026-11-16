@@ -17,7 +17,10 @@ TwoPlus keeps your training on track:
 Privacy: your data stays in your account. No ads, no data selling.
 
 ## Assets
-- App icon 512x512 PNG (export from mobile/assets/icon.png)
+- App icon 512x512 PNG: **done** — `node scripts/make-listing-icon.mjs`
+  downscales the member app's real icon (`mobile/assets/icon.png`) to
+  `release/store/listing-icon-512x512.png` via the same Playwright-Chromium
+  tooling as the feature graphic
 - Feature graphic 1024x500: **done** — `brand/feature-graphic.svg` is the
   maintainable source (colours and the disc + H mark measured from the app's
   real icon); `node scripts/make-feature-graphic.mjs` exports
