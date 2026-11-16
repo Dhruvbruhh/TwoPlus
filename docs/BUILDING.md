@@ -121,19 +121,24 @@ photo-library permissions plus Google sign-in — the store declarations in
 `STORE-READINESS.md` describe the Capacitor shell, not this app, and need their
 own pass before submission.
 
-Rebuilt 2026-11-16 after the `RECORD_AUDIO`/`SYSTEM_ALERT_WINDOW` cleanup (see
-`STORE-READINESS.md`). Copies in `release/mobile/`:
-`TwoPlus-1.0-android-member.apk` (110,754,653 bytes, SHA-256
-`2783BFB16A01E299FE41F83EE710C26FC466C0169114F9CFD24C6E918D29DFD2`) and
-`TwoPlus-1.0-android-member.aab` (75,725,101 bytes, SHA-256
-`F26E3B99F778BFB28F9037D090256DF71BE7A766D0AF99FD937BD5CD7EF728DC`). Verified:
+Rebuilt 2026-11-16 after the `RECORD_AUDIO`/`SYSTEM_ALERT_WINDOW` cleanup and
+again after adding in-app data export + account deletion (commit 9b25284; see
+`STORE-READINESS.md`). Current copies in `release/mobile/`:
+`TwoPlus-1.0-android-member.apk` (110,812,793 bytes, SHA-256
+`26B23A9A901978B9E606E4698E8D1355320D089FF435604EE7C320E3686837EF`) and
+`TwoPlus-1.0-android-member.aab` (75,747,538 bytes, SHA-256
+`A30517766DD52EE01155AAC36A3C28B1C89CA4F52B76F561727F3ED628C99B7C`). Verified:
 package `fit.twoplus.member` versionCode 1 / versionName 1.0.0 / targetSdk 36;
 v2 signature with the same `CN=TwoPlus, OU=Mobile, O=TwoPlus, C=IN` certificate;
 `RECORD_AUDIO` and `SYSTEM_ALERT_WINDOW` absent from both packaged manifests.
 
 Build-machine note: this project must be built from a short root path (e.g.
-`C:\tpm2`, a full robocopy of `mobile/`) with `android/app/build/` deleted in the
-copy first. The app-module CMake autolinking embeds absolute `node_modules`
+`C:\tpm2`, a full robocopy of `mobile/`) with BOTH `android/app/build/` AND
+`android/build/` deleted in the copy first (the root-level
+`build/generated/autolinking/autolinking.json` rides along from the long path
+and bakes D: paths into the regenerated CMake files), and `./gradlew --stop`
+run before building (idle daemons started inside the D: tree regenerate
+outputs against it). The app-module CMake autolinking embeds absolute `node_modules`
 source paths into ninja object files; from
 `D:\TwoPlus\TwoPlus-repo\mobile\...` those exceed Windows' 260-char MAX_PATH
 (LongPathsEnabled is off) and the native build fails. The JS bundling step also

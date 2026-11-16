@@ -73,8 +73,8 @@ manifest at build time. Remaining prebuild extras (`VIBRATE`, legacy external
 storage ≤ SDK 32) are inert or legacy-normal; left in place.
 
 **Verified in the rebuilt artifacts (2026-11-16, see `BUILDING.md` for paths and
-SHA-256 hashes):** `aapt2 dump badging` on the release APK and a protobuf parse
-of the AAB base manifest both show `RECORD_AUDIO` and `SYSTEM_ALERT_WINDOW`
+SHA-256 hashes):** `aapt2 dump badging` on the release APK and a parse of the AAB
+base manifest both show `RECORD_AUDIO` and `SYSTEM_ALERT_WINDOW`
 **absent**. Package `fit.twoplus.member`, versionCode 1 / versionName 1.0.0 /
 targetSdk 36, v2-signed with the same release certificate
 (`CN=TwoPlus, OU=Mobile, O=TwoPlus, C=IN`). APK additionally carries
@@ -189,9 +189,9 @@ Ready:
 - [x] In-app account deletion and data export exist in the mobile member app
       (profile screen "Your data" section; `delete_my_account` RPC from
       migration 0016 + JSON export via the share sheet). Google's account
-      deletion requirement for apps with account creation is met in code; the
-      rebuilt release APK/AAB predate this feature, so rebuild before
-      submission if the deletion flow must ship in the first store build.
+      deletion requirement for apps with account creation is met in code.
+      Release artifacts rebuilt 2026-11-16 **after** this feature (commit
+      9b25284); hashes in `BUILDING.md`.
 
 Prepared, human action required:
 
