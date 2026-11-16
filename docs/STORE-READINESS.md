@@ -190,13 +190,11 @@ Ready:
       (profile screen "Your data" section; `delete_my_account` RPC from
       migration 0016 + JSON export via the share sheet). Google's account
       deletion requirement for apps with account creation is met in code.
-      **The RPC is not live yet** (migration unapplied; owner procedure in
-      `docs/MIGRATION-CHECKLIST.md`), and the release artifacts must be rebuilt
-      after it ships: the current `release/mobile/` pair predates the 2026-11-16
-      export/wipe fixes (review commit), so rebuild per `BUILDING.md` and
-      re-record the hashes. The 0016 file itself changed in that review (phone
-      placeholder, see ISSUES.md), which does not affect the already-built
-      binaries but is in them-by-RPC only at runtime.
+      Release artifacts rebuilt 2026-11-16 from commit 192963d, which includes
+      the deletion-flow review fixes (0016 phone placeholder, on-device wipe,
+      export parity); hashes in `BUILDING.md`. The RPC itself is still not live
+      in production — applying migrations 0005+0016 is the owner procedure in
+      `docs/MIGRATION-CHECKLIST.md`.
 
 Prepared, human action required:
 
