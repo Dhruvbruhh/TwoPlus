@@ -1,14 +1,10 @@
 /**
- * AI meal analysis hook.
+ * Meal photo analysis.
  *
- * The scanner calls `analyzeMealPhoto`; when no key is configured it returns
- * `{ available: false }` and the scanner falls back to manual entry - never
- * fabricated numbers. To enable: set EXPO_PUBLIC_AI_URL (OpenAI-compatible
- * chat/completions endpoint) and EXPO_PUBLIC_AI_KEY at build time.
- *
- * shortcut: key is bundled in the JS bundle via EXPO_PUBLIC_, acceptable only
- * because it is a scoped, revocable key; move to a Supabase Edge Function
- * proxy before charging real inference volume.
+ * Unavailable in this build, on purpose: inference must run behind an
+ * authenticated backend function (spend limits, consent, no model key in the
+ * app bundle). Until that exists the scanner says so and the member logs the
+ * meal manually; no numbers are ever invented.
  */
 
 export type AiItem = {
@@ -21,13 +17,8 @@ export type AiItem = {
 
 export type AiAnalysis = { available: false } | { available: true; items: AiItem[] };
 
-const url = process.env.EXPO_PUBLIC_AI_URL;
-const key = process.env.EXPO_PUBLIC_AI_KEY;
-
-export const aiConfigured = !!(url && key);
+export const aiConfigured = false;
 
 export async function analyzeMealPhoto(_imageUri: string): Promise<AiAnalysis> {
-  if (!aiConfigured) return { available: false };
-  // Live-vision path is implemented when a key exists; see shortcut above.
   return { available: false };
 }

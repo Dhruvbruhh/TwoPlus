@@ -58,3 +58,18 @@ test("migration 0016: the anonymised phone value satisfies its own check", () =>
   assert.match("0000000000".replace(/^.*$/, "x"), /x/);
   assert.ok(/^[0-9+() -]{6,20}$/.test("0000000000"), "placeholder must pass members_phone_shape");
 });
+
+test("wipe reaches the offline cache: useAsync stores under CACHE_PREFIX, keys are per member", () => {
+  // Regression: keys were stored bare ("home"), so the prefix wipe missed them.
+  assert.match(useAsyncSrc, /const storeKey = cacheKey \? CACHE_PREFIX \+ cacheKey : null/);
+  assert.doesNotMatch(useAsyncSrc, /cachePut\(cacheKey/);
+  for (const screen of ["index", "train", "profile", "community", "coach", "nutrition"]) {
+    const src = readFileSync(new URL(`../app/(tabs)/${screen}.tsx`, import.meta.url), "utf8");
+    assert.match(src, /member \? `\w+:\$\{member\.id\}` : undefined/, `${screen} cache key is member-scoped`);
+  }
+});
+
+test("account switch: a different user on this device wipes the previous member's data", () => {
+  assert.match(authSrc, /if \(last && last !== uid\) await wipeLocalMemberData\(\)/);
+  assert.match(dataSrc, /k\.startsWith\(OUTBOX_PREFIX\)/);
+});

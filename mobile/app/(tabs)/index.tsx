@@ -45,7 +45,7 @@ import { tabBarSpace } from "./_layout";
  * records - no second source of truth, nothing farmed.
  */
 export default function HomeScreen() {
-  const { member, unclaimed } = useAuth();
+  const { member, unclaimed, signOut, error: authError, refreshMember } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -67,7 +67,7 @@ export default function HomeScreen() {
       return { org, memberships, attendance, plan, classes, bookings, measurements, sessions, water };
     },
     [member?.id, member?.organization_id],
-    "home",
+    member ? `home:${member.id}` : undefined,
   );
 
   const view = useMemo(() => {
@@ -147,9 +147,24 @@ export default function HomeScreen() {
         <EmptyState
           icon="link-outline"
           title="Your gym has not linked this email yet"
-          body="You are signed in, but no member record matches this address. Ask the front desk to add this exact email to your profile, then pull down to refresh."
-          action="Sign out"
-          onAction={() => router.replace("/login")}
+          body="You are signed in, but we could not link exactly one gym membership to this email. Ask the front desk to check the email on your profile, then tap Check again. If you use another email with your gym, sign out and use that one."
+          action="Check again"
+          onAction={() => void refreshMember()}
+        />
+        <Button label="Sign out" variant="secondary" icon="log-out-outline" onPress={() => void signOut()} />
+      </Screen>
+    );
+  }
+
+  if (!member && authError) {
+    return (
+      <Screen>
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Could not load your membership"
+          body={authError}
+          action="Try again"
+          onAction={() => void refreshMember()}
         />
       </Screen>
     );
@@ -177,6 +192,19 @@ export default function HomeScreen() {
           </T>
         ) : null}
       </View>
+
+      {member && member.status !== "active" ? (
+        <Card>
+          <Row gap={space.sm}>
+            <Ionicons name="lock-closed-outline" size={18} color={color.warning} />
+            <T variant="small" tone="warning" style={{ flex: 1 }}>
+              {member.status === "suspended"
+                ? "Your gym has suspended this membership record. You can still see your history; please speak to the front desk before training."
+                : "This membership record is archived. Your history stays readable; ask the front desk if you are rejoining."}
+            </T>
+          </Row>
+        </Card>
+      ) : null}
 
       {state.loading ? (
         <>
@@ -215,7 +243,7 @@ export default function HomeScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <T variant="caption" tone="faint">
-                      PAID
+                      PLAN PRICE
                     </T>
                     <T variant="bodyStrong">
                       {view.active.price_minor != null
@@ -341,7 +369,7 @@ export default function HomeScreen() {
           {/* Water: quick add, kept on-device. */}
           <Card>
             <Row style={{ justifyContent: "space-between" }}>
-              <T variant="caption" tone="faint">WATER TODAY</T>
+              <T variant="caption" tone="faint">WATER TODAY · ON THIS PHONE</T>
               <T variant="caption" tone="muted">
                 {((view?.waterToday ?? 0) / 1000).toFixed(2)} / {((view?.waterGoal ?? 2000) / 1000).toFixed(1)} L
               </T>

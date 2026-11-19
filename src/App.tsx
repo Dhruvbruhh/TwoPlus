@@ -222,6 +222,17 @@ export default function App() {
   const [modal, setModal] = useState("")
   const [modalError, setModalError] = useState("")
   const [modalBusy, setModalBusy] = useState(false)
+  // One id per opened form: pressing Save again after a timeout or error
+  // reuses it, so the server can return the first result instead of writing
+  // a second payment, invoice or renewal. A new form gets a new id.
+  const requestId = useRef("")
+  // A member created by this form, kept so a retry after a later step failed
+  // (plan assignment, enquiry update) does not register the person twice.
+  const createdInForm = useRef<string | null>(null)
+  useEffect(() => {
+    requestId.current = crypto.randomUUID()
+    createdInForm.current = null
+  }, [modal])
   const [page, setPage] = useState(1)
   const [moduleTick, setModuleTick] = useState(0)
   const [openCheckins, setOpenCheckins] = useState<{ id: string; name: string }[]>([])
@@ -2654,15 +2665,18 @@ const canVoidInvoice = !!org && ["owner", "manager", "finance"].includes(org.rol
                       const [first, ...rest] = rawName.split(/\s+/)
                       const planName = String(data.get("plan") || "Unassigned")
                       const chosen = plans.find((p) => p.name === planName)
-                      const created = await api.createMember(orgId, {
-                        first_name: first || rawName,
-                        last_name: rest.join(" "),
-                        email: String(data.get("email") || "") || undefined,
-                        phone: String(data.get("phone") || ""),
-                        date_of_birth: String(data.get("dob") || "") || undefined,
-                        joined_on: String(data.get("joined") || "") || undefined,
-                        photo_url: String(data.get("photo") || "").trim() || undefined,
-                      })
+                      const created = createdInForm.current
+                        ? { id: createdInForm.current }
+                        : await api.createMember(orgId, {
+                            first_name: first || rawName,
+                            last_name: rest.join(" "),
+                            email: String(data.get("email") || "") || undefined,
+                            phone: String(data.get("phone") || ""),
+                            date_of_birth: String(data.get("dob") || "") || undefined,
+                            joined_on: String(data.get("joined") || "") || undefined,
+                            photo_url: String(data.get("photo") || "").trim() || undefined,
+                          })
+                      createdInForm.current = created.id
                       if (chosen) {
                         const start = String(data.get("joined") || "") ||
                           new Date().toISOString().slice(0, 10)
@@ -2688,6 +2702,7 @@ const canVoidInvoice = !!org && ["owner", "manager", "finance"].includes(org.rol
                         {
                           amount_minor: Math.round(rupees * 100),
                           note: String(data.get("note") || "") || undefined,
+                          request_id: requestId.current,
                         },
                       )
                       setModal("")
@@ -2736,6 +2751,7 @@ const canVoidInvoice = !!org && ["owner", "manager", "finance"].includes(org.rol
                         method: String(data.get("method") || "cash") as PaymentMethod,
                         status: String(data.get("status") || "paid") as "paid" | "pending",
                         description: String(data.get("description") || "") || undefined,
+                        request_id: requestId.current,
                       })
                       setModal("")
                       notify("Payment recorded")
@@ -2752,6 +2768,7 @@ const canVoidInvoice = !!org && ["owner", "manager", "finance"].includes(org.rol
                         issued_on: String(data.get("issued") || "") || undefined,
                         due_on: String(data.get("due") || "") || undefined,
                         notes: String(data.get("notes") || "") || undefined,
+                        request_id: requestId.current,
                       })
                       setModal("")
                       notify("Invoice raised")
@@ -2929,14 +2946,37 @@ const canVoidInvoice = !!org && ["owner", "manager", "finance"].includes(org.rol
                       const enquiry = convertible.find((e) => e.id === enquiryId)
                       if (!enquiry) throw new Error("Select an enquiry to convert")
                       const [first, ...rest] = enquiry.name.trim().split(/\s+/)
-                      const created = await api.createMember(orgId, {
-                        first_name: first || enquiry.name,
-                        last_name: rest.join(" "),
-                        phone: enquiry.phone,
-                      })
                       const chosen = plans.find(
                         (p) => p.name === String(data.get("plan") || "Unassigned"),
                       )
+                      const joined =
+                        String(data.get("joined") || "") ||
+                        new Date().toISOString().slice(0, 10)
+                      // One transaction on databases with 0018; a retry returns
+                      // the same member.
+                      const converted = await api.convertEnquiry({
+                        enquiry_id: enquiryId,
+                        first_name: first || enquiry.name,
+                        last_name: rest.join(" "),
+                        plan_id: chosen?.id ?? null,
+                        start_date: joined,
+                        end_date: String(data.get("expires") || "") || null,
+                      })
+                      if (converted) {
+                        setModal("")
+                        notify("Enquiry converted to a member")
+                        setModuleTick((t) => t + 1)
+                        reload()
+                        return
+                      }
+                      const created = createdInForm.current
+                        ? { id: createdInForm.current }
+                        : await api.createMember(orgId, {
+                            first_name: first || enquiry.name,
+                            last_name: rest.join(" "),
+                            phone: enquiry.phone,
+                          })
+                      createdInForm.current = created.id
                       if (chosen) {
                         const start =
                           String(data.get("joined") || "") ||

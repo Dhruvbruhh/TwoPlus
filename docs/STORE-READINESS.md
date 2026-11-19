@@ -11,7 +11,7 @@ remembered.
 | App id | `fit.twoplus.app` | `fit.twoplus.member` |
 | Stack | Capacitor wrapper around `dist/` | Expo / React Native (`mobile/`) |
 | Audience | the gym owner, at the desk | the gym's members, in the gym |
-| Android permission footprint | `INTERNET` only | camera, location, activity recognition, images (see below) |
+| Android permission footprint | `INTERNET` only | camera, location, images (see below; activity recognition removed in 1.0.1) |
 | Signed Android artifacts | `release/mobile/TwoPlus-1.0-android.{apk,aab}` | `release/mobile/TwoPlus-1.0-android-member.{apk,aab}` |
 
 The Play Store listing this document targets for members is the **member app**.
@@ -53,7 +53,7 @@ Android permissions in the **built release APK** (merged manifest, not just the
 five requested in `app.json`):
 
 - Declared by the app: `CAMERA` (food scanner), `ACCESS_COARSE_LOCATION` +
-  `ACCESS_FINE_LOCATION` (run tracking), `ACTIVITY_RECOGNITION` (step counting),
+  `ACCESS_FINE_LOCATION` (run tracking), ~~`ACTIVITY_RECOGNITION` (step counting)~~ removed in 1.0.1 (no step-count feature exists; now in `blockedPermissions`),
   `READ_MEDIA_IMAGES` (photo library pick), `INTERNET`.
 - Added by Expo prebuild defaults: `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`,
   `VIBRATE`, `READ_EXTERNAL_STORAGE` (≤ SDK 32), `WRITE_EXTERNAL_STORAGE` (≤ SDK 32).
@@ -92,7 +92,7 @@ or prepare a justification for the Data Safety form.~~ Resolved via
 match the **manifest**, not the intent.
 
 iOS (`mobile/app.json` `ios.infoPlist`): location-when-in-use, camera, photo
-library, and motion usage descriptions are present. No iOS build has been
+library usage descriptions are present (motion description removed in 1.0.1 with the unused step counting). No iOS build has been
 produced yet (needs macOS/Xcode); the keys were written, not verified on a build.
 
 ## Permissions and declarations (owner web shell)
@@ -161,10 +161,10 @@ payments or staff records) plus three things the shell does not have:
 | Name, phone, date of birth, gender, address, emergency contacts | as the gym recorded them; member edits where the UI allows | member record | yes | mostly (dob/gender/address/emergency nullable) |
 | Fitness data | workout logs, sets, body measurements, diet plans, water log | the product itself | yes | yes |
 | Health app data: meals | meal log with per-item macros, entered manually or from the food scanner | nutrition tracking | yes | yes |
-| Photos | progress photos exist only via the gym's web workspace; the mobile app has no photo picker or list | — | — | — |
+| Photos | progress photos (1.0.1): taken or picked in Profile → Body, uploaded to the private `member-progress` bucket, shown via 10-minute signed links | fitness tracking | yes | yes |
 | Location (coarse + fine) | run tracking, foreground only (`expo-location`, `Accuracy.Balanced`) | distance, time, pace for a run the member starts | yes | yes (feature is opt-in per run) |
 | Camera | food scanner label photo | extract macros into the meal log | no (photo is processed on-device/discarded; only the meal entry is stored) | yes |
-| Activity recognition | step/motion detection while a tracked run is on | record that a run happened | yes | yes |
+| Activity recognition | not collected from 1.0.1 (permission removed) | — | — | — |
 | On-device only: meals and water history | AsyncStorage (`twoplus.meals`, `twoplus.water`) | offline nutrition log | no (never leaves the device) | yes |
 
 Location accuracy note for the form: the app never uploads GPS coordinates.

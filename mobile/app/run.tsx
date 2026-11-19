@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, Share, Text, View } from "react-native";
+import { Alert, BackHandler, Pressable, Share, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,6 +29,8 @@ export default function RunScreen() {
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const secondsRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Part of the saved note, so a retry after a lost response is recognised.
+  const startedRef = useRef<Date | null>(null);
 
   const stopWatch = useCallback(() => {
     watchRef.current?.remove();
@@ -52,6 +54,7 @@ export default function RunScreen() {
       return;
     }
     setStatus("tracking");
+    startedRef.current = new Date();
     setSeconds(0);
     setPoints([]);
     secondsRef.current = 0;
@@ -93,7 +96,7 @@ export default function RunScreen() {
         memberId: member.id,
         organizationId: member.organization_id,
         durationMinutes: Math.round(secs / 60),
-        note: runNote(km, secs),
+        note: `${runNote(km, secs)} · started ${(startedRef.current ?? new Date()).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`,
       });
       setStatus("saved");
     } catch (e) {
@@ -101,6 +104,19 @@ export default function RunScreen() {
       setError(e instanceof Error ? e.message : "Could not save the run.");
     }
   }, [clearTimer, member, points, stopWatch]);
+
+  // Android back while tracking would silently drop the run: ask first.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (status !== "tracking") return false;
+      Alert.alert("Stop tracking?", "Leaving now discards this run. Use Stop to save it.", [
+        { text: "Keep running", style: "cancel" },
+        { text: "Discard", style: "destructive", onPress: () => { stopWatch(); router.back(); } },
+      ]);
+      return true;
+    });
+    return () => sub.remove();
+  }, [status, stopWatch, router]);
 
   const km = useMemo(() => totalKm(points), [points]);
   const pace = formatPaceShort(km, seconds);

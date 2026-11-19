@@ -2,7 +2,7 @@
   "expo": {
     "name": "TwoPlus",
     "slug": "twoplus-member",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "twoplus",
     "userInterfaceStyle": "light",
@@ -17,11 +17,11 @@
       "supportsTablet": true,
       "bundleIdentifier": "fit.twoplus.member",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "TwoPlus records the route of your runs and walks so you can see distance and pace.",
-        "NSCameraUsageDescription": "TwoPlus uses the camera so you can take progress photos and scan food barcodes.",
-        "NSPhotoLibraryUsageDescription": "TwoPlus reads photos you pick so you can attach progress pictures.",
-        "NSMotionUsageDescription": "TwoPlus reads step and activity data to fill your daily movement ring."
-      }
+        "NSLocationWhenInUseUsageDescription": "TwoPlus uses your location only while you track a run, to measure distance and pace. The route stays on your phone.",
+        "NSCameraUsageDescription": "TwoPlus uses the camera when you take a progress photo or photograph a meal to log.",
+        "NSPhotoLibraryUsageDescription": "TwoPlus reads photos you pick so you can attach progress pictures."
+      },
+      "buildNumber": "2"
     },
     "android": {
       "package": "fit.twoplus.member",
@@ -33,13 +33,14 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "CAMERA",
-        "READ_MEDIA_IMAGES",
-        "ACTIVITY_RECOGNITION"
+        "READ_MEDIA_IMAGES"
       ],
       "blockedPermissions": [
         "RECORD_AUDIO",
-        "SYSTEM_ALERT_WINDOW"
-      ]
+        "SYSTEM_ALERT_WINDOW",
+        "ACTIVITY_RECOGNITION"
+      ],
+      "versionCode": 2
     },
     "plugins": [
       "expo-router",
@@ -48,13 +49,15 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "TwoPlus reads photos you pick so you can attach progress pictures."
+          "photosPermission": "TwoPlus reads photos you pick so you can attach progress pictures.",
+          "cameraPermission": "TwoPlus uses the camera when you take a progress photo or photograph a meal to log.",
+          "microphonePermission": false
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "TwoPlus records the route of your runs and walks."
+          "locationWhenInUsePermission": "TwoPlus uses your location only while you track a run, to measure distance and pace. The route stays on your phone."
         }
       ],
       "expo-web-browser"

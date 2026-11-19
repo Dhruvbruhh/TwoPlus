@@ -1,10 +1,21 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Pressable, TextInput, View } from "react-native";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
 import { useAsync } from "../../src/lib/useAsync";
-import { deleteMyAccount, exportMyData, wipeLocalMemberData } from "../../src/lib/data";
+import {
+  deleteMyAccount,
+  deleteProgressPhoto,
+  exportMyData,
+  getInvoices,
+  getProgressPhotos,
+  uploadProgressPhoto,
+  wipeLocalMemberData,
+} from "../../src/lib/data";
+import { readOutbox } from "../../src/lib/outbox";
 import {
   addMeasurement,
   getAttendance,
@@ -15,7 +26,7 @@ import {
   formatMoney,
   type Measurement,
 } from "../../src/lib/data";
-import { humanise, initials, shortDate, streakFrom } from "../../src/lib/format";
+import { humanise, initials, invoiceBalance, shortDate, streakFrom } from "../../src/lib/format";
 import {
   Button,
   Card,
@@ -55,17 +66,18 @@ export default function ProfileScreen() {
   const state = useAsync(
     async () => {
       if (!member) return null;
-      const [org, memberships, payments, attendance, measurements] = await Promise.all([
+      const [org, memberships, payments, attendance, measurements, invoices] = await Promise.all([
         getOrg(member.organization_id),
         getMemberships(member.id),
         getPayments(member.id),
         getAttendance(member.id, 120),
         getMeasurements(member.id),
+        getInvoices(member.id),
       ]);
-      return { org, memberships, payments, attendance, measurements };
+      return { org, memberships, payments, attendance, measurements, invoices };
     },
     [member?.id, member?.organization_id],
-    "profile",
+    member ? `profile:${member.id}` : undefined,
   );
 
   const spend = useMemo(
@@ -76,12 +88,23 @@ export default function ProfileScreen() {
     [state.data],
   );
 
-  function confirmSignOut() {
-    Alert.alert("Sign out?", "You will need your password to sign back in.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Sign out", style: "destructive", onPress: () => void signOut() },
-    ]);
+  async function confirmSignOut() {
+    const queued = member ? (await readOutbox(member.id)).length : 0;
+    Alert.alert(
+      "Sign out?",
+      queued
+        ? `${queued} workout set(s) logged offline have not reached your gym yet and will be discarded from this phone. Open the workout while online first to sync them.`
+        : "You will need your password to sign back in. Anything cached on this phone is removed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: queued ? "Discard and sign out" : "Sign out", style: "destructive", onPress: () => void signOut() },
+      ],
+    );
   }
+
+  const currency = state.data?.org?.currency ?? "INR";
+  const openInvoices = (state.data?.invoices ?? []).filter((i) => i.status !== "void");
+  const outstanding = openInvoices.reduce((sum, i) => sum + invoiceBalance(i), 0);
 
   return (
     <Screen
@@ -194,19 +217,46 @@ export default function ProfileScreen() {
           />
         )
       ) : pane === "payments" ? (
-        state.data?.payments.length ? (
+        state.data?.payments.length || openInvoices.length ? (
           <>
             <Card>
               <Row gap={space.lg}>
+                <Stat label="Paid (verified)" value={formatMoney(spend, currency)} tone="accent" />
                 <Stat
-                  label="Total paid"
-                  value={formatMoney(spend, state.data?.org?.currency ?? "INR")}
-                  tone="accent"
+                  label="Outstanding"
+                  value={openInvoices.length ? formatMoney(outstanding, currency) : "—"}
+                  tone={outstanding > 0 ? "warning" : "text"}
                 />
-                <Stat label="Receipts" value={String(state.data.payments.length)} />
               </Row>
+              <T variant="caption" tone="faint" style={{ marginTop: space.sm }}>
+                {openInvoices.length
+                  ? "Outstanding is invoice totals minus payments your gym has verified. Pending entries count once the desk confirms them."
+                  : "No invoices from your gym on record. Ask the desk if you expect to owe anything."}
+              </T>
             </Card>
-            {state.data.payments.map((p, i) => (
+            {openInvoices.map((inv) => {
+              const due = invoiceBalance(inv);
+              return (
+                <Card key={inv.id}>
+                  <Row style={{ justifyContent: "space-between" }}>
+                    <View style={{ flex: 1, paddingRight: space.sm }}>
+                      <T variant="smallStrong">{inv.invoice_number}</T>
+                      <T variant="caption" tone="faint" style={{ marginTop: 2 }}>
+                        Issued {shortDate(inv.issued_on)}
+                        {inv.due_on ? ` · due ${shortDate(inv.due_on)}` : ""} · total {formatMoney(inv.total_minor, currency)}
+                      </T>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <T variant="bodyStrong" tone={due > 0 ? "warning" : "success"}>
+                        {due > 0 ? formatMoney(due, currency) : "Settled"}
+                      </T>
+                      {due > 0 ? <T variant="caption" tone="faint">to pay</T> : null}
+                    </View>
+                  </Row>
+                </Card>
+              );
+            })}
+            {(state.data?.payments ?? []).map((p, i) => (
               <View key={p.id}>
                 {i > 0 ? <Divider /> : null}
                 <Row style={{ justifyContent: "space-between", paddingVertical: space.sm }}>
@@ -240,7 +290,7 @@ export default function ProfileScreen() {
             <Card>
               <Row gap={space.lg}>
                 <Stat label="Streak" value={String(streakFrom(state.data.attendance.map((a) => a.check_in)))} unit="days" tone="accent" />
-                <Stat label="Logged" value={String(state.data.attendance.length)} unit="visits" />
+                <Stat label="Recent" value={String(state.data.attendance.length)} unit="visits" />
               </Row>
             </Card>
             {state.data.attendance.slice(0, 30).map((a) => (
@@ -275,6 +325,10 @@ export default function ProfileScreen() {
         />
       ) : null}
 
+      {pane === "body" && member ? (
+        <ProgressPhotos organizationId={member.organization_id} memberId={member.id} />
+      ) : null}
+
       <View style={{ marginTop: space.md }}>
         <Button
           label="Fitness tools"
@@ -286,7 +340,7 @@ export default function ProfileScreen() {
           label="Sign out"
           variant="secondary"
           icon="log-out-outline"
-          onPress={confirmSignOut}
+          onPress={() => void confirmSignOut()}
           style={{ marginTop: space.sm }}
         />
         <YourData />
@@ -532,6 +586,114 @@ function BodyPane({
           body="Log your first weight above; anything your coach records will appear here too."
         />
       ) : null}
+    </>
+  );
+}
+
+/**
+ * Private progress photos. Stored in the gym's private bucket under the
+ * member's own folder; links are signed for ten minutes and never cached, so
+ * an expired link just means "pull to refresh".
+ */
+function ProgressPhotos({ organizationId, memberId }: { organizationId: string; memberId: string }) {
+  const photos = useAsync(() => getProgressPhotos(organizationId, memberId), [organizationId, memberId]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function add(fromCamera: boolean) {
+    setErr(null);
+    const perm = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      setErr(
+        fromCamera
+          ? "Camera access is off for TwoPlus. You can still choose a photo from your library, or allow the camera in system settings."
+          : "Photo access is off for TwoPlus. Allow it in system settings to attach a picture.",
+      );
+      return;
+    }
+    const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], quality: 0.7 };
+    const res = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+    if (res.canceled || !res.assets?.[0]) return;
+    setBusy(true);
+    try {
+      await uploadProgressPhoto({ organizationId, memberId, uri: res.assets[0].uri, mimeType: res.assets[0].mimeType });
+      await photos.reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not save that photo.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function remove(p: { id: string; storage_path: string }) {
+    Alert.alert("Delete this photo?", "It is removed from your gym's storage too. This cannot be undone.", [
+      { text: "Keep", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () =>
+          void (async () => {
+            setErr(null);
+            try {
+              await deleteProgressPhoto(p);
+            } catch (e) {
+              setErr(e instanceof Error ? e.message : "Could not delete that photo.");
+            }
+            await photos.reload();
+          })(),
+      },
+    ]);
+  }
+
+  return (
+    <>
+      <SectionHeader title="Progress photos" />
+      <Card>
+        <T variant="caption" tone="muted">
+          Private to you and your gym's staff. Your data export lists them but does not contain the images.
+        </T>
+        <Row gap={space.sm} style={{ marginTop: space.md }}>
+          <Button label="Take photo" icon="camera-outline" variant="secondary" compact loading={busy} onPress={() => void add(true)} style={{ flex: 1 }} />
+          <Button label="Choose" icon="images-outline" variant="secondary" compact disabled={busy} onPress={() => void add(false)} style={{ flex: 1 }} />
+        </Row>
+        {err ? <T variant="caption" tone="danger" style={{ marginTop: space.sm }}>{err}</T> : null}
+      </Card>
+      {photos.loading ? (
+        <Skeleton height={120} />
+      ) : photos.error ? (
+        <EmptyState icon="cloud-offline-outline" title="Photos unavailable" body={photos.error} action="Try again" onAction={photos.reload} />
+      ) : photos.data?.length ? (
+        <Row gap={space.sm} style={{ flexWrap: "wrap" }}>
+          {photos.data.map((p) => (
+            <Pressable
+              key={p.id}
+              onLongPress={() => remove(p)}
+              accessibilityRole="imagebutton"
+              accessibilityLabel={`Progress photo from ${shortDate(p.taken_on)}. Long press to delete.`}
+              accessibilityActions={[{ name: "delete", label: "Delete photo" }]}
+              onAccessibilityAction={(e) => {
+                if (e.nativeEvent.actionName === "delete") remove(p);
+              }}
+              style={{ width: "31%", aspectRatio: 3 / 4, borderRadius: radius.md, overflow: "hidden", backgroundColor: color.surfaceRaised }}
+            >
+              {p.url ? (
+                <Image source={{ uri: p.url }} style={{ flex: 1 }} contentFit="cover" cachePolicy="none" />
+              ) : (
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: space.xs }}>
+                  <T variant="caption" tone="faint" align="center">Link expired, pull to refresh</T>
+                </View>
+              )}
+              <View style={{ position: "absolute", left: 4, bottom: 4, backgroundColor: color.glass, borderRadius: 6, paddingHorizontal: 4 }}>
+                <T variant="caption">{shortDate(p.taken_on)}</T>
+              </View>
+            </Pressable>
+          ))}
+        </Row>
+      ) : (
+        <T variant="caption" tone="faint">No progress photos yet.</T>
+      )}
     </>
   );
 }

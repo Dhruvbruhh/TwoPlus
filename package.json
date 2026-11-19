@@ -18,7 +18,8 @@
     "desktop": "npm run build && electron .",
     "desktop:smoke": "npm run build && electron . --smoke-check",
     "desktop:icon": "node scripts/make-icon.mjs",
-    "desktop:package": "npm run build && npm run desktop:icon && electron-packager . TwoPlus --platform=win32 --arch=x64 --out=release --overwrite --asar --icon=build/icon.ico --app-version=1.0.0 --win32metadata.CompanyName=TwoPlus --appCopyright=\"Copyright (C) 2026 TwoPlus\" --ignore=\"^/(?!(dist|electron)(/|$)|package\\.json$)\""
+    "desktop:package": "npm run build && npm run desktop:icon && electron-packager . TwoPlus --platform=win32 --arch=x64 --out=release --overwrite --asar --icon=build/icon.ico --app-version=1.0.0 --win32metadata.CompanyName=TwoPlus --appCopyright=\"Copyright (C) 2026 TwoPlus\" --ignore=\"^/(?!(dist|electron)(/|$)|package\\.json$)\"",
+    "test:db": "node --test supabase/tests/*.test.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^8.6.0",
@@ -41,6 +42,7 @@
     "@capacitor/android": "^8.6.0",
     "@capacitor/cli": "^8.6.0",
     "@capacitor/ios": "^8.6.0",
+    "@electric-sql/pglite": "^0.5.16",
     "@electron/packager": "^20.3.0",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",

@@ -96,3 +96,48 @@ export function humanise(value: string | null | undefined) {
   if (!value) return "—";
   return value.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 }
+
+/**
+ * Money from integer minor units. Whole amounts drop the decimals; anything
+ * with paise shows both digits, so a reconciled figure is never rounded away.
+ */
+export function formatMoney(minor: number, currency = "INR") {
+  const symbol = currency === "INR" ? "₹" : currency === "USD" ? "$" : currency === "EUR" ? "€" : `${currency} `;
+  const sign = minor < 0 ? "-" : "";
+  const abs = Math.abs(minor);
+  const digits = abs % 100 === 0 ? 0 : 2;
+  const major = (abs / 100).toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return `${sign}${symbol}${major}`;
+}
+
+/**
+ * What is still owed on an invoice: the total minus verified ("paid")
+ * allocations. Pending, failed and refunded entries do not reduce it; a void
+ * invoice owes nothing.
+ */
+export function invoiceBalance(invoice: {
+  total_minor: number;
+  status: string;
+  payments?: { amount_minor: number; status: string }[] | null;
+}) {
+  if (invoice.status === "void") return 0;
+  const paid = (invoice.payments ?? [])
+    .filter((p) => p.status === "paid")
+    .reduce((sum, p) => sum + p.amount_minor, 0);
+  return Math.max(0, invoice.total_minor - paid);
+}
+
+/**
+ * Set numbers are unique per session (workout_sets unique(session_id,
+ * set_number)), not per exercise, so the next one is session-wide.
+ */
+export function nextSetNumber(sets: { set_number: number }[]) {
+  return sets.reduce((max, s) => Math.max(max, s.set_number), 0) + 1;
+}
+
+/** "saved 14:05" or "saved 3 Nov, 14:05" for an offline copy. */
+export function savedAt(ms: number, now = Date.now()) {
+  const d = new Date(ms);
+  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return dayKey(d) === dayKey(new Date(now)) ? `saved ${time}` : `saved ${shortDate(d.toISOString())}, ${time}`;
+}

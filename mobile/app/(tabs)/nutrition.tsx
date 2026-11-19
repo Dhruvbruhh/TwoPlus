@@ -68,7 +68,7 @@ export default function NutritionScreen() {
       return { meals, history, water, sessions, measurements };
     },
     [member?.id],
-    "nutrition",
+    member ? `nutrition:${member.id}` : undefined,
   );
 
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);

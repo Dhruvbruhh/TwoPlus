@@ -78,7 +78,7 @@ export default function ScanScreen() {
         setNote(
           aiConfigured
             ? "Could not identify that photo. Add the items manually below."
-            : "AI analysis is not set up yet. Add the items manually - they save the same way.",
+            : "Automatic meal analysis is not available in this version. Add the items manually - they save the same way.",
         );
       }
     } catch {
@@ -153,7 +153,7 @@ export default function ScanScreen() {
             <T variant="small" tone="muted" align="center" style={{ maxWidth: 280 }}>
               {aiConfigured
                 ? "AI estimates calories and macros. Log foods manually whenever needed."
-                : "Meal analysis is not set up yet. Log foods manually, with or without a photo."}
+                : "Automatic meal analysis is not available in this version. Log foods manually, with or without a photo."}
             </T>
             <View style={{ alignSelf: "stretch", gap: space.md, marginTop: space.md }}>
               <Button label="Open camera" icon="camera" onPress={() => void pick(true)} />

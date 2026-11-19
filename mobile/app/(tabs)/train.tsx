@@ -66,7 +66,7 @@ export default function TrainScreen() {
       return { plan, diet, sessions, classes, bookings, seats };
     },
     [member?.id, member?.organization_id],
-    "train",
+    member ? `train:${member.id}` : undefined,
   );
 
   const bookedIds = useMemo(

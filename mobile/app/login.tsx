@@ -24,7 +24,8 @@ import { color, gutter, radius, space, type } from "../src/lib/theme";
  * the browser and receives the session back on the twoplus:// deep link.
  */
 export default function LoginScreen() {
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, sendPasswordReset, notice } = useAuth();
+  const [info, setInfo] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -43,6 +44,23 @@ export default function LoginScreen() {
       setError(e instanceof Error ? e.message : "Could not start Google sign-in.");
     } finally {
       setGoogleBusy(false);
+    }
+  }
+
+  async function forgot() {
+    const mail = email.trim();
+    setInfo(null);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) {
+      setError("Enter your email above first, then tap Forgot password.");
+      return;
+    }
+    setError(null);
+    try {
+      await sendPasswordReset(mail);
+      // Same message whether or not the address has an account.
+      setInfo(`If ${mail} has an account, a reset link is on its way. Open it on this phone, set a new password on the TwoPlus site, then sign in here.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send the reset email.");
     }
   }
 
@@ -149,6 +167,20 @@ export default function LoginScreen() {
                   </View>
                 </View>
 
+                {notice && !error ? (
+                  <View style={[s.error, { backgroundColor: color.accentSoft }]}>
+                    <Ionicons name="time-outline" size={16} color={color.accentText} />
+                    <T variant="small" style={{ flex: 1 }}>{notice}</T>
+                  </View>
+                ) : null}
+
+                {info ? (
+                  <View style={[s.error, { backgroundColor: color.accentSoft }]} accessibilityLiveRegion="polite">
+                    <Ionicons name="mail-outline" size={16} color={color.accentText} />
+                    <T variant="small" style={{ flex: 1 }}>{info}</T>
+                  </View>
+                ) : null}
+
                 {error ? (
                   <View style={s.error}>
                     <Ionicons name="alert-circle-outline" size={16} color={color.danger} />
@@ -159,6 +191,16 @@ export default function LoginScreen() {
                 ) : null}
 
                 <Button label="Sign in" onPress={submit} loading={busy} />
+
+                <Pressable
+                  onPress={() => void forgot()}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  style={{ alignSelf: "center", minHeight: 44, justifyContent: "center" }}
+                >
+                  <T variant="smallStrong" tone="accent">Forgot password?</T>
+                </Pressable>
 
                 <View style={s.orRow}>
                   <View style={s.orLine} />

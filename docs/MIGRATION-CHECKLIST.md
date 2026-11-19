@@ -1,4 +1,4 @@
-# Owner checklist — applying migrations 0005, 0016 and 0017
+# Owner checklist — applying migrations 0005, 0016, 0017 and 0018
 
 Everything on this page is a production database write. Run it yourself, from
 your machine, when you have an hour and are not in a hurry. Nothing here has
@@ -14,7 +14,19 @@ member-facing RLS gaps found in review: the missing member photo
 insert/delete policy, the `workout_sessions` update policy, the
 `class_bookings` cancel with-check, and trainer attendance updates.
 
-**Why all three in one session.** 0016 sets `photo_url = null` on the
+`0018_retry_safe_writes.sql` (added 2026-11-19) makes desk money writes safe
+to retry (payment and renewal request ids, counter-numbered invoices, one-step
+enquiry conversion), lets members read their own invoices, adds the missing
+member update policy on `workout_sets`, lets owners/managers send in-app
+reminders to linked members, and stops trainers reading payments, invoices and
+expenses. Every change is exercised by `npm run test:db` (20 scenarios on a
+local Postgres with all 18 migrations); `supabase/tests/baseline-0017.test.mjs`
+reproduces each defect on the 0017 schema. It has **not** run on a Supabase
+project yet. **Effect to expect:** trainers see empty Payments, Invoices and
+Expenses lists after it lands — that is the intended restriction.
+
+**Why all four in one session.** 0018 calls `create_member`, which writes
+`members.photo_url`, so it also needs 0005 first. 0016 sets `photo_url = null` on the
 anonymised member row, so 0005 **must** land before 0016 or the delete RPC is
 created against a column that does not exist. 0017 has no ordering
 dependency but belongs to the same window: none of the three is applied yet.
@@ -120,11 +132,11 @@ wrongly marked history is the exact failure mode this step exists to avoid.
 npx supabase db push --linked
 ```
 
-This applies `0005_member_photos.sql`, then `0016_account_deletion.sql`, then
-`0017_rls_member_fixes.sql`, in order. All three are idempotent (checked:
+This applies `0005_member_photos.sql`, `0016_account_deletion.sql`,
+`0017_rls_member_fixes.sql` and `0018_retry_safe_writes.sql`, in order. All four are idempotent (checked:
 `add column if not exists`, `create or replace function`, guarded grants and
 `drop policy if exists` before create), so a dropped connection can be re-run
-safely. Expect output naming exactly these three files.
+safely. Expect output naming exactly these four files.
 
 ## E. Post-checks
 
@@ -148,6 +160,16 @@ select tablename, policyname from pg_policy
                       'bookings cancel own', 'attendance update')
  order by tablename, policyname;
 -- expect 6 rows
+
+-- 1c. 0018: the new functions and the request-id columns exist
+select proname, pg_get_function_identity_arguments(oid) from pg_proc
+ where pronamespace = 'public'::regnamespace
+   and proname in ('create_invoice', 'convert_enquiry', 'record_payment', 'renew_membership')
+ order by 1;
+-- expect 4 rows; record_payment and renew_membership end in "p_request_id uuid"
+select table_name from information_schema.columns
+ where table_schema = 'public' and column_name = 'client_request_id' order by 1;
+-- expect invoices, membership_renewals, payments
 
 -- 2. the grant went to authenticated only
 select grantee from information_schema.role_routine_grants
@@ -187,6 +209,11 @@ Then, from the app, the two end-to-end proofs:
 - **0016** only creates a function. Reversing it is
   `drop function if exists public.delete_my_account();` — again, no reason
   unless a defect shows in post-check E.
+- **0018** adds nullable columns, a counter table and functions, and swaps
+  four policies. The web client calls the new functions first and falls back to
+  the previous path when one is missing, so reverting 0018 does not break the
+  desk. To revert, restore the previous policy text from 0001/0004/0006 and
+  `drop function` the two new ones; keep the columns (inert when null).
 - **0017** only alters policies. Reversing it means restoring the previous
   policy definitions from git history (`git show 475fea7:supabase/migrations/...`
   for the pre-fix state) — no reason unless a post-check fails.
@@ -207,7 +234,7 @@ claims true):
 
 - `ISSUES.md` — close the two S1 rows (photo save, migration history).
 - `MISSION.md` Phase 19 — tick the "migrations written but not applied" row
-  (it now lists 0005, 0016 and 0017).
+  (it now lists 0005, 0016, 0017 and 0018).
 - `docs/BACKLOG_TRIAGE.md` — D2, D3, D5 are now done.
 
 Then delete the two exports (`SUPABASE_ACCESS_TOKEN`, `PGPASSWORD`) from the

@@ -1,6 +1,7 @@
 import React from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -136,9 +137,14 @@ export function Screen({
   return (
     <Container style={s.screen} edges={edges}>
       {scroll ? (
+        // iOS needs padding so focused inputs clear the keyboard; Android
+        // resizes the window itself (adjustResize).
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
           contentContainerStyle={{ paddingBottom: space.huge }}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           // refreshControl is native-only: on web it blanks the whole scene.
           {...(onRefresh && Platform.OS !== "web"
             ? {
@@ -150,6 +156,7 @@ export function Screen({
         >
           {body}
         </ScrollView>
+        </KeyboardAvoidingView>
       ) : (
         <View style={{ flex: 1 }}>{body}</View>
       )}

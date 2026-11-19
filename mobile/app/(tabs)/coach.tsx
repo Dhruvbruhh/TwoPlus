@@ -55,7 +55,7 @@ export default function CoachScreen() {
       return { trainer, plan, diet, measurements, sessions, attendance };
     },
     [member?.id, member?.trainer_id],
-    "coach",
+    member ? `coach:${member.id}` : undefined,
   );
 
   const latest = state.data?.measurements[0] ?? null;
