@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,6 +19,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { color, gutter, HIT, motion, radius, space, type } from "../lib/theme";
+import { haptic, useReducedMotion } from "../lib/feedback";
 
 /**
  * Shared primitives. Every screen composes these rather than styling raw
@@ -42,6 +45,25 @@ const weightFamily: Record<string, string> = {
 };
 
 export type Variant = keyof typeof type;
+
+/**
+ * Text follows the system font size, bounded per role so a 200% setting
+ * grows body copy generously but cannot push a stat row or title off the
+ * screen.
+ */
+const maxScale: Record<Variant, number> = {
+  display: 1.2,
+  h1: 1.3,
+  h2: 1.4,
+  h3: 1.6,
+  body: 1.8,
+  bodyStrong: 1.8,
+  small: 1.8,
+  smallStrong: 1.8,
+  caption: 1.6,
+  mono: 1.6,
+};
+const headings = new Set<Variant>(["display", "h1", "h2", "h3"]);
 
 export function T({
   variant = "body",
@@ -77,6 +99,8 @@ export function T({
   return (
     <Text
       numberOfLines={numberOfLines}
+      maxFontSizeMultiplier={maxScale[variant]}
+      accessibilityRole={headings.has(variant) ? "header" : undefined}
       style={[
         base,
         { fontFamily: weightFamily[String(base.fontWeight)] ?? family.regular, color: toneColor },
@@ -108,7 +132,7 @@ export function Card({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       android_ripple={{ color: color.line }}
-      style={({ pressed }) => (pressed ? { opacity: 0.82 } : null)}
+      style={({ pressed }) => (pressed ? { opacity: 0.92, transform: [{ scale: 0.985 }] } : null)}
     >
       {inner}
     </Pressable>
@@ -145,11 +169,19 @@ export function Screen({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          // refreshControl is native-only: on web it blanks the whole scene.
+          // Must be a RefreshControl element itself, not a wrapper: on Android
+          // ScrollView clones it with the scroll view as its children, so a
+          // wrapper that drops children blanks the whole screen.
           {...(onRefresh && Platform.OS !== "web"
             ? {
                 refreshControl: (
-                  <RefreshIndicator refreshing={!!refreshing} onRefresh={onRefresh} />
+                  <RefreshControl
+                    refreshing={!!refreshing}
+                    onRefresh={onRefresh}
+                    tintColor={color.textMuted}
+                    colors={[color.accent]}
+                    progressBackgroundColor={color.surfaceRaised}
+                  />
                 ),
               }
             : {})}
@@ -161,27 +193,6 @@ export function Screen({
         <View style={{ flex: 1 }}>{body}</View>
       )}
     </Container>
-  );
-}
-
-function RefreshIndicator({
-  refreshing,
-  onRefresh,
-}: {
-  refreshing: boolean;
-  onRefresh: () => void;
-}) {
-  // Imported lazily to keep the primitives file free of a hard RefreshControl
-  // dependency for screens that never refresh.
-  const { RefreshControl } = require("react-native") as typeof import("react-native");
-  return (
-    <RefreshControl
-      refreshing={refreshing}
-      onRefresh={onRefresh}
-      tintColor={color.textMuted}
-      colors={[color.accent]}
-      progressBackgroundColor={color.surfaceRaised}
-    />
   );
 }
 
@@ -222,7 +233,14 @@ export function Button({
 
   return (
     <Pressable
-      onPress={inert ? undefined : onPress}
+      onPress={
+        inert
+          ? undefined
+          : () => {
+              if (variant === "primary" || variant === "danger") haptic.tap();
+              onPress();
+            }
+      }
       disabled={inert}
       accessibilityRole="button"
       accessibilityState={{ disabled: !!inert, busy: !!loading }}
@@ -232,7 +250,8 @@ export function Button({
         {
           backgroundColor: bg,
           minHeight: compact ? HIT - 4 : 52,
-          opacity: inert ? 0.5 : pressed ? 0.85 : 1,
+          opacity: inert ? 0.5 : pressed ? 0.88 : 1,
+          transform: [{ scale: pressed && !inert ? 0.98 : 1 }],
           borderWidth: variant === "secondary" || variant === "ghost" ? 1 : 0,
           borderColor: variant === "ghost" ? "transparent" : color.line,
         },
@@ -245,10 +264,13 @@ export function Button({
         <>
           {icon ? <Ionicons name={icon} size={17} color={fg} style={{ marginRight: space.sm }} /> : null}
           <Text
+            maxFontSizeMultiplier={1.5}
+            numberOfLines={1}
             style={{
               ...type.bodyStrong,
               fontFamily: family.semi,
               color: fg,
+              flexShrink: 1,
             }}
           >
             {label}
@@ -342,7 +364,9 @@ export function Chip({
   return (
     <View style={[s.chip, { backgroundColor: map.bg }]}>
       {icon ? <Ionicons name={icon} size={12} color={map.fg} style={{ marginRight: 5 }} /> : null}
-      <Text style={{ ...type.caption, fontFamily: family.semi, color: map.fg }}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.4} style={{ ...type.caption, fontFamily: family.semi, color: map.fg }}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -409,10 +433,24 @@ export function EmptyState({
 }
 
 export function Skeleton({ height = 16, width = "100%" as const, style }: { height?: number; width?: number | `${number}%`; style?: StyleProp<ViewStyle> }) {
+  const reduced = useReducedMotion();
+  const [pulse] = useState(() => new Animated.Value(1));
+  useEffect(() => {
+    if (reduced) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.55, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reduced, pulse]);
   return (
-    <View
+    <Animated.View
+      accessibilityLabel="Loading"
       style={[
-        { height, width, borderRadius: radius.sm, backgroundColor: color.surfaceRaised },
+        { height, width, borderRadius: radius.md, borderCurve: "continuous", backgroundColor: color.surfaceRaised, opacity: pulse },
         style,
       ]}
     />
@@ -423,7 +461,11 @@ export function Divider() {
   return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: color.line }} />;
 }
 
-/** 0..1 progress bar in the accent colour. No animation dependency: a width. */
+/**
+ * 0..1 progress bar in the accent colour. The fill eases to its value with a
+ * scaleX transform on the native driver (never an animated width), and jumps
+ * straight there under Reduce motion.
+ */
 export function ProgressBar({
   progress,
   style,
@@ -432,21 +474,83 @@ export function ProgressBar({
   style?: StyleProp<ViewStyle>;
 }) {
   const clamped = Math.max(0, Math.min(1, progress));
+  const reduced = useReducedMotion();
+  const [fill] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    if (reduced) {
+      fill.setValue(clamped);
+      return;
+    }
+    Animated.timing(fill, { toValue: clamped, duration: motion.slow, useNativeDriver: true }).start();
+  }, [clamped, reduced, fill]);
   return (
     <View
       style={[{ height: 6, borderRadius: radius.pill, backgroundColor: color.line, overflow: "hidden" }, style]}
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(clamped * 100) }}
     >
-      <View
+      <Animated.View
         style={{
-          width: `${Math.round(clamped * 100)}%`,
+          width: "100%",
           height: "100%",
           borderRadius: radius.pill,
           backgroundColor: color.accentBright,
+          transformOrigin: "left",
+          transform: [{ scaleX: fill }],
         }}
       />
     </View>
+  );
+}
+
+/**
+ * Segmented pane switcher (Train, Profile). Scrolls sideways when large text
+ * makes the labels wider than the screen, announces itself as a tab list,
+ * and ticks on change.
+ */
+export function Segmented<K extends string>({
+  items,
+  value,
+  onChange,
+}: {
+  items: { key: K; label: string }[];
+  value: K;
+  onChange: (next: K) => void;
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      accessibilityRole="tablist"
+      contentContainerStyle={{ gap: space.xs, paddingRight: space.lg }}
+      style={{ marginHorizontal: -gutter, paddingHorizontal: gutter, flexGrow: 0 }}
+    >
+      {items.map((p) => {
+        const on = value === p.key;
+        return (
+          <Pressable
+            key={p.key}
+            onPress={() => {
+              if (on) return;
+              haptic.selection();
+              onChange(p.key);
+            }}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            hitSlop={{ top: 4, bottom: 4 }}
+            style={({ pressed }) => [
+              s.segment,
+              on ? s.segmentOn : null,
+              pressed && !on ? { opacity: 0.75 } : null,
+            ]}
+          >
+            <T variant="smallStrong" tone={on ? "accent" : "muted"}>
+              {p.label}
+            </T>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -469,6 +573,7 @@ export function Row({
 const s = StyleSheet.create({
   card: {
     borderRadius: radius.lg,
+    borderCurve: "continuous",
     borderWidth: 1,
     borderColor: color.line,
     backgroundColor: color.surface,
@@ -481,11 +586,13 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.md,
+    borderCurve: "continuous",
     paddingHorizontal: space.lg,
   },
   input: {
     minHeight: 50,
     borderRadius: radius.md,
+    borderCurve: "continuous",
     borderWidth: 1,
     borderColor: color.line,
     backgroundColor: color.surface,
@@ -508,6 +615,19 @@ const s = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: space.md,
     paddingVertical: 4,
+  },
+  segment: {
+    paddingHorizontal: space.lg,
+    minHeight: 40,
+    justifyContent: "center",
+    borderRadius: radius.pill,
+    backgroundColor: color.surfaceRaised,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  segmentOn: {
+    backgroundColor: color.accentSoft,
+    borderColor: "rgba(123,92,214,0.4)",
   },
   empty: {
     alignItems: "center",

@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
 import { useAsync } from "../../src/lib/useAsync";
+import { haptic } from "../../src/lib/feedback";
 import {
   addWater,
   getActiveWorkoutPlan,
@@ -271,6 +272,52 @@ export default function HomeScreen() {
             )}
           </Card>
 
+          {/* Today's training: the reason the member opened the app at the gym. */}
+          <SectionHeader
+            title="Today"
+            action={state.data?.plan ? "Open" : undefined}
+            onAction={() => router.push("/workout")}
+          />
+          {state.data?.plan ? (
+            <Card onPress={() => router.push("/workout")} accessibilityLabel="Open today's workout">
+              <Row style={{ justifyContent: "space-between" }}>
+                <View style={{ flex: 1, paddingRight: space.md }}>
+                  <T variant="bodyStrong" numberOfLines={1}>
+                    {state.data.plan.plan.name}
+                  </T>
+                  <T variant="small" tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>
+                    {view?.exerciseCount ?? 0} exercises
+                    {state.data.plan.plan.goal ? ` · ${state.data.plan.plan.goal}` : ""}
+                  </T>
+                </View>
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: radius.pill,
+                    backgroundColor: color.accentSoft,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="barbell-outline" size={19} color={color.accentText} />
+                </View>
+              </Row>
+              <Button
+                label="Start workout"
+                icon="play"
+                onPress={() => router.push("/workout")}
+                style={{ marginTop: space.lg }}
+              />
+            </Card>
+          ) : (
+            <EmptyState
+              icon="barbell-outline"
+              title="No plan assigned yet"
+              body="Your coach has not assigned a workout plan. It will appear here as soon as they do."
+            />
+          )}
+
           {/* Level + XP ring: derived from real sessions and visits. */}
           {view?.progression ? (
             <Card>
@@ -384,6 +431,7 @@ export default function HomeScreen() {
                 variant="secondary"
                 compact
                 onPress={async () => {
+                  haptic.tap();
                   await addWater(250);
                   await state.refresh();
                 }}
@@ -398,52 +446,6 @@ export default function HomeScreen() {
               />
             </Row>
           </Card>
-
-          {/* Today's training. */}
-          <SectionHeader
-            title="Today"
-            action={state.data?.plan ? "Open" : undefined}
-            onAction={() => router.push("/workout")}
-          />
-          {state.data?.plan ? (
-            <Card onPress={() => router.push("/workout")} accessibilityLabel="Open today's workout">
-              <Row style={{ justifyContent: "space-between" }}>
-                <View style={{ flex: 1, paddingRight: space.md }}>
-                  <T variant="bodyStrong" numberOfLines={1}>
-                    {state.data.plan.plan.name}
-                  </T>
-                  <T variant="small" tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>
-                    {view?.exerciseCount ?? 0} exercises
-                    {state.data.plan.plan.goal ? ` · ${state.data.plan.plan.goal}` : ""}
-                  </T>
-                </View>
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: radius.pill,
-                    backgroundColor: color.accentSoft,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons name="barbell-outline" size={19} color={color.accentText} />
-                </View>
-              </Row>
-              <Button
-                label="Start workout"
-                icon="play"
-                onPress={() => router.push("/workout")}
-                style={{ marginTop: space.lg }}
-              />
-            </Card>
-          ) : (
-            <EmptyState
-              icon="barbell-outline"
-              title="No plan assigned yet"
-              body="Your coach has not assigned a workout plan. It will appear here as soon as they do."
-            />
-          )}
 
           {/* Outdoor run: GPS tracking, saved as a real session. */}
           <Card onPress={() => router.push("/run")} accessibilityLabel="Start a tracked outdoor run">
@@ -519,6 +521,7 @@ function nextLevelName(index: number) {
 }
 
 async function quickWater(ml: number, refresh: () => Promise<void>) {
+  haptic.tap();
   await addWater(ml);
   await refresh();
 }

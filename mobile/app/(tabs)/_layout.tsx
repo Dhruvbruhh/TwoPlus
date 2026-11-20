@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, radius } from "../../src/lib/theme";
 import { ui } from "../../src/components/ui";
+import { haptic } from "../../src/lib/feedback";
 
 /**
  * The five destinations. A floating glass bar rather than a full-bleed strip:
@@ -17,10 +18,12 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      screenListeners={{ tabPress: () => haptic.selection() }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: color.accentText,
         tabBarInactiveTintColor: color.textFaint,
+        tabBarAllowFontScaling: true,
         tabBarLabelStyle: {
           fontSize: 10.5,
           fontFamily: ui.family.medium,

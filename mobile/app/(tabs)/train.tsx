@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Pressable, View } from "react-native";
+import { Alert, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
 import { useAsync } from "../../src/lib/useAsync";
+import { haptic } from "../../src/lib/feedback";
 import {
   bookClass,
   cancelBooking,
@@ -25,10 +26,11 @@ import {
   Row,
   Screen,
   SectionHeader,
+  Segmented,
   Skeleton,
   T,
 } from "../../src/components/ui";
-import { color, radius, space } from "../../src/lib/theme";
+import { color, space } from "../../src/lib/theme";
 import { tabBarSpace } from "./_layout";
 
 type Pane = "plan" | "history" | "classes" | "diet";
@@ -93,8 +95,10 @@ export default function TrainScreen() {
     try {
       if (booked) await cancelBooking(classId);
       else await bookClass(classId);
+      haptic.success();
       await state.refresh();
     } catch (e) {
+      haptic.warning();
       Alert.alert(
         booked ? "Could not cancel" : "Could not book",
         e instanceof Error ? e.message : "Try again in a moment.",
@@ -119,32 +123,7 @@ export default function TrainScreen() {
         </T>
       </View>
 
-      <Row gap={space.xs} style={{ flexWrap: "wrap" }}>
-        {PANES.map((p) => {
-          const on = pane === p.key;
-          return (
-            <Pressable
-              key={p.key}
-              onPress={() => setPane(p.key)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: on }}
-              style={{
-                paddingHorizontal: space.lg,
-                minHeight: 38,
-                justifyContent: "center",
-                borderRadius: radius.pill,
-                backgroundColor: on ? color.accentSoft : color.surfaceRaised,
-                borderWidth: 1,
-                borderColor: on ? "rgba(123,92,214,0.4)" : "transparent",
-              }}
-            >
-              <T variant="smallStrong" tone={on ? "accent" : "muted"}>
-                {p.label}
-              </T>
-            </Pressable>
-          );
-        })}
-      </Row>
+      <Segmented items={PANES} value={pane} onChange={setPane} />
 
       {state.loading ? (
         <Skeleton height={180} />

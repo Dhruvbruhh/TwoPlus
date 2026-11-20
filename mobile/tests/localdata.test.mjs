@@ -73,3 +73,32 @@ test("account switch: a different user on this device wipes the previous member'
   assert.match(authSrc, /if \(last && last !== uid\) await wipeLocalMemberData\(\)/);
   assert.match(dataSrc, /k\.startsWith\(OUTBOX_PREFIX\)/);
 });
+
+test("android: Screen passes a bare RefreshControl (a wrapper drops the cloned children and blanks every tab)", () => {
+  const ui = readFileSync(new URL("../src/components/ui.tsx", import.meta.url), "utf8");
+  assert.match(ui, /refreshControl: \(\s*<RefreshControl\b/);
+  assert.doesNotMatch(ui, /RefreshIndicator/);
+});
+
+test("progress photos: the column is notes (0006); reads alias it, never select a bare note", () => {
+  const web = readFileSync(new URL("../../src/lib/member-api.ts", import.meta.url), "utf8");
+  for (const src of [dataSrc, web]) {
+    assert.doesNotMatch(src, /member_progress_photos"\)\s*\.select\("[^"]*\bnote\b(?!:)/);
+  }
+  assert.match(web, /notes: input\.note/);
+});
+
+test("native feel: primitives carry haptics, bounded font scaling, heading roles; panes share one control", () => {
+  const ui = readFileSync(new URL("../src/components/ui.tsx", import.meta.url), "utf8");
+  assert.match(ui, /maxFontSizeMultiplier=\{maxScale\[variant\]\}/);
+  assert.match(ui, /accessibilityRole=\{headings\.has\(variant\) \? "header" : undefined\}/);
+  assert.match(ui, /haptic\.tap\(\)/);
+  assert.match(ui, /useReducedMotion\(\)/);
+  for (const screen of ["train", "profile"]) {
+    const src = readFileSync(new URL(`../app/(tabs)/${screen}.tsx`, import.meta.url), "utf8");
+    assert.match(src, /<Segmented items=\{PANES\}/);
+    assert.doesNotMatch(src, /PANES\.map/);
+  }
+  const home = readFileSync(new URL("../app/(tabs)/index.tsx", import.meta.url), "utf8");
+  assert.ok(home.indexOf("Today's training") < home.indexOf("Level + XP ring"), "workout comes before XP on Home");
+});

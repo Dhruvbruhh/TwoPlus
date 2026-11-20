@@ -458,7 +458,7 @@ export async function getProgressPhotos(organizationId: string, memberId: string
   const rows = await many<Omit<ProgressPhoto, "url">>(
     supabase
       .from("member_progress_photos")
-      .select("id, taken_on, storage_path, note")
+      .select("id, taken_on, storage_path, note:notes")
       .eq("organization_id", organizationId)
       .eq("member_id", memberId)
       .order("taken_on", { ascending: false })
@@ -683,7 +683,7 @@ export async function exportMyData(): Promise<string> {
       getMyBookings(memberId),
       getInvoices(memberId, EXPORT_LIMIT),
       many<{ id: string; taken_on: string; note: string | null }>(
-        supabase.from("member_progress_photos").select("id, taken_on, note").eq("member_id", memberId).limit(EXPORT_LIMIT),
+        supabase.from("member_progress_photos").select("id, taken_on, note:notes").eq("member_id", memberId).limit(EXPORT_LIMIT),
       ),
     ]);
 

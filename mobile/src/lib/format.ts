@@ -101,12 +101,15 @@ export function humanise(value: string | null | undefined) {
  * Money from integer minor units. Whole amounts drop the decimals; anything
  * with paise shows both digits, so a reconciled figure is never rounded away.
  */
+// Built once: list rows call formatMoney per payment.
+const wholeFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+const paiseFmt = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export function formatMoney(minor: number, currency = "INR") {
   const symbol = currency === "INR" ? "₹" : currency === "USD" ? "$" : currency === "EUR" ? "€" : `${currency} `;
   const sign = minor < 0 ? "-" : "";
   const abs = Math.abs(minor);
-  const digits = abs % 100 === 0 ? 0 : 2;
-  const major = (abs / 100).toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const major = (abs % 100 === 0 ? wholeFmt : paiseFmt).format(abs / 100);
   return `${sign}${symbol}${major}`;
 }
 

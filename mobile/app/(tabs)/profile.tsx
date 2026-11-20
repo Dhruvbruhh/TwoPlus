@@ -16,6 +16,7 @@ import {
   wipeLocalMemberData,
 } from "../../src/lib/data";
 import { readOutbox } from "../../src/lib/outbox";
+import { haptic } from "../../src/lib/feedback";
 import {
   addMeasurement,
   getAttendance,
@@ -36,6 +37,7 @@ import {
   Row,
   Screen,
   SectionHeader,
+  Segmented,
   Skeleton,
   Stat,
   T,
@@ -146,32 +148,7 @@ export default function ProfileScreen() {
         </Row>
       </View>
 
-      <Row gap={space.xs} style={{ flexWrap: "wrap" }}>
-        {PANES.map((p) => {
-          const on = pane === p.key;
-          return (
-            <Pressable
-              key={p.key}
-              onPress={() => setPane(p.key)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: on }}
-              style={{
-                paddingHorizontal: space.lg,
-                minHeight: 38,
-                justifyContent: "center",
-                borderRadius: radius.pill,
-                backgroundColor: on ? color.accentSoft : color.surfaceRaised,
-                borderWidth: 1,
-                borderColor: on ? "rgba(123,92,214,0.4)" : "transparent",
-              }}
-            >
-              <T variant="smallStrong" tone={on ? "accent" : "muted"}>
-                {p.label}
-              </T>
-            </Pressable>
-          );
-        })}
-      </Row>
+      <Segmented items={PANES} value={pane} onChange={setPane} />
 
       {state.loading ? (
         <Skeleton height={200} />
@@ -505,6 +482,7 @@ function BodyPane({
         heightCm: latest?.height_cm ?? null,
       });
       setMsg("Check-in saved.");
+      haptic.success();
       onSaved();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not save the check-in.");

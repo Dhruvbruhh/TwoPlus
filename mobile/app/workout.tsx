@@ -23,6 +23,7 @@ import {
   type Exercise,
 } from "../src/lib/data";
 import { nextSetNumber } from "../src/lib/format";
+import { haptic } from "../src/lib/feedback";
 import {
   drain,
   isNetworkError,
@@ -181,6 +182,7 @@ export default function WorkoutScreen() {
       await send(item);
       setLogged((prev) => merge(prev, [fromPending({ ...item, queuedAt: 0 })]));
       setEditing(null);
+      haptic.success();
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not save that set.";
       if (isNetworkError(message)) {
@@ -190,11 +192,13 @@ export default function WorkoutScreen() {
           setPending(next);
           setEditing(null);
           setError("No connection: the set is saved on this phone and will sync when you are back online.");
+          haptic.warning();
         } catch (qe) {
           setError(qe instanceof Error ? qe.message : message);
         }
       } else {
         // Inputs are kept so the member can correct and retry.
+        haptic.warning();
         setError(
           /row-level security/i.test(message) && editing != null
             ? "This set cannot be changed until your gym updates TwoPlus. Log a new set instead."
@@ -216,6 +220,7 @@ export default function WorkoutScreen() {
         return;
       }
       await finishSession(sessionId, Math.max(1, Math.round(elapsed / 60)));
+      haptic.success();
       router.back();
     } catch (e) {
       Alert.alert("Could not finish", e instanceof Error ? e.message : "Try again in a moment.");
