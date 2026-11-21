@@ -82,7 +82,7 @@ No new native dependencies.
 | `TwoPlus-1.0.1-5-android-member.apk` (`fit.twoplus.member` 1.0.1 / 5) | 110,879,357 | `eb65952e211636f254ffba5bcff918eb469a758aaaf9f3564bbb1317a58b77c5` |
 | `TwoPlus-1.0.1-5-android-member.aab` | 75,773,973 | `0b8ce85ee9a9fe8672815aa75457565310f057448102fdf044ff419215dd469f` |
 
-Same release certificate (`4ea08dc0…eed7`); apksigner v2 ok, `jar verified`. versionCodes 2–4 are superseded: 2 and 3 have the blank-tab bug, and 4 lacks the photo-column fix and the polish. Gates: mobile typecheck clean, 52/52 tests, web build ok, lint unchanged at 10 warnings. **Not yet verified on the device:** v5 was built after BlueStacks closed.
+Same release certificate (`4ea08dc0…eed7`); apksigner v2 ok, `jar verified`. versionCodes 2–4 are superseded: 2 and 3 have the blank-tab bug, and 4 lacks the photo-column fix and the polish. Gates: mobile typecheck clean, 52/52 tests, web build ok, lint unchanged at 10 warnings. **Not verified on the device:** v5 was installed on BlueStacks (versionCode 5 confirmed) but sign-in could not be completed, so the owner skipped the signed-in check. The blank-tab fix is covered by a regression test only.
 
 ## Remaining (in order)
 1. Signed-in device journeys (sign-in, workout, offline sets, permissions, photos, export/delete, sign-out/account switch): needs a staging Supabase project with 0001–0018 (`supabase/combined/all_0001-0018.sql`), a member build pointed at it (`EXPO_PUBLIC_SUPABASE_URL`/`_ANON_KEY`), and synthetic test logins.
