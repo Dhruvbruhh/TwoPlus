@@ -21,7 +21,7 @@
         "NSCameraUsageDescription": "TwoPlus uses the camera when you take a progress photo or photograph a meal to log.",
         "NSPhotoLibraryUsageDescription": "TwoPlus reads photos you pick so you can attach progress pictures."
       },
-      "buildNumber": "5"
+      "buildNumber": "6"
     },
     "android": {
       "package": "fit.twoplus.member",
@@ -40,7 +40,7 @@
         "SYSTEM_ALERT_WINDOW",
         "ACTIVITY_RECOGNITION"
       ],
-      "versionCode": 5
+      "versionCode": 6
     },
     "plugins": [
       "expo-router",
