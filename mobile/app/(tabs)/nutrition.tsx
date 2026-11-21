@@ -20,7 +20,7 @@ import {
   type MealEntry,
 } from "../../src/lib/nutrition";
 import { useAuth } from "../../src/lib/auth";
-import { dayKey } from "../../src/lib/format";
+import { dayKey, humanise } from "../../src/lib/format";
 import {
   Button,
   Card,
@@ -383,7 +383,7 @@ function MacroStat({ label, value, hue }: { label: string; value: number; hue: s
     <View style={{ alignItems: "center", gap: 2 }}>
       <T variant="h3">{Math.round(value)} g</T>
       <T variant="caption" style={{ color: hue }}>
-        {label.toUpperCase()}
+        {label}
       </T>
     </View>
   );
@@ -453,19 +453,19 @@ function ManualAdd({
               style={[st.slotChip, draft.slot === s && { backgroundColor: color.accentSoft }]}
             >
               <T variant="caption" tone={draft.slot === s ? "accent" : "muted"}>
-                {s.toUpperCase()}
+                {humanise(s)}
               </T>
             </Pressable>
           ))}
         </Row>
-        <Field label="NAME" value={draft.name} onChangeText={(t) => setDraft({ ...draft, name: t })} />
+        <Field label="Name" value={draft.name} onChangeText={(t) => setDraft({ ...draft, name: t })} />
         <Row gap={space.sm}>
-          <Field label="CALORIES" value={draft.calories} onChangeText={(t) => setDraft({ ...draft, calories: t })} />
-          <Field label="PROTEIN G" value={draft.protein} onChangeText={(t) => setDraft({ ...draft, protein: t })} />
+          <Field label="Calories" value={draft.calories} onChangeText={(t) => setDraft({ ...draft, calories: t })} />
+          <Field label="Protein (g)" value={draft.protein} onChangeText={(t) => setDraft({ ...draft, protein: t })} />
         </Row>
         <Row gap={space.sm}>
-          <Field label="CARBS G" value={draft.carbs} onChangeText={(t) => setDraft({ ...draft, carbs: t })} />
-          <Field label="FAT G" value={draft.fat} onChangeText={(t) => setDraft({ ...draft, fat: t })} />
+          <Field label="Carbs (g)" value={draft.carbs} onChangeText={(t) => setDraft({ ...draft, carbs: t })} />
+          <Field label="Fat (g)" value={draft.fat} onChangeText={(t) => setDraft({ ...draft, fat: t })} />
         </Row>
         <Row gap={space.sm} style={{ marginTop: space.md }}>
           <Button label="Cancel" variant="secondary" compact onPress={onClose} style={{ flex: 1 }} />

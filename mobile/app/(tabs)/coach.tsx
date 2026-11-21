@@ -16,6 +16,7 @@ import {
 import { humanise, initials, shortDate, streakFrom } from "../../src/lib/format";
 import { coachInsights } from "../../src/lib/insights";
 import {
+  BackButton,
   Button,
   Card,
   Chip,
@@ -79,7 +80,8 @@ export default function CoachScreen() {
       }}
       contentStyle={{ paddingBottom: tabBarSpace(insets.bottom) }}
     >
-      <View style={{ paddingTop: space.md }}>
+      <View style={{ paddingTop: space.sm }}>
+        <BackButton label="Train" />
         <T variant="h1">Coach</T>
         <T variant="small" tone="muted" style={{ marginTop: 2 }}>
           Who is looking after your training, and what they have set.

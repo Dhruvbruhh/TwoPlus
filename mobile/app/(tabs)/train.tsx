@@ -123,6 +123,19 @@ export default function TrainScreen() {
         </T>
       </View>
 
+      <Card onPress={() => router.push("/coach")} accessibilityLabel="Open your coach">
+        <Row style={{ justifyContent: "space-between" }}>
+          <Row gap={space.sm} style={{ flex: 1 }}>
+            <Ionicons name="person-outline" size={20} color={color.accentText} />
+            <View style={{ flex: 1 }}>
+              <T variant="bodyStrong">Your coach</T>
+              <T variant="small" tone="muted">Trainer, contact and insights</T>
+            </View>
+          </Row>
+          <Ionicons name="chevron-forward" size={18} color={color.textFaint} />
+        </Row>
+      </Card>
+
       <Segmented items={PANES} value={pane} onChange={setPane} />
 
       {state.loading ? (
@@ -280,10 +293,10 @@ export default function TrainScreen() {
             {state.data.diet.plan.target_calories ? (
               <Row gap={space.lg} style={{ marginTop: space.lg }}>
                 {[
-                  { label: "KCAL", v: state.data.diet.plan.target_calories },
-                  { label: "PROTEIN", v: state.data.diet.plan.target_protein_g },
-                  { label: "CARBS", v: state.data.diet.plan.target_carbs_g },
-                  { label: "FAT", v: state.data.diet.plan.target_fat_g },
+                  { label: "Kcal", v: state.data.diet.plan.target_calories },
+                  { label: "Protein", v: state.data.diet.plan.target_protein_g },
+                  { label: "Carbs", v: state.data.diet.plan.target_carbs_g },
+                  { label: "Fat", v: state.data.diet.plan.target_fat_g },
                 ]
                   .filter((x) => x.v)
                   .map((x) => (

@@ -20,7 +20,7 @@ import {
   bmiOf,
   formatMoney,
 } from "../../src/lib/data";
-import { clockTime, dayKey, daysLeft, greeting, shortDate, streakFrom } from "../../src/lib/format";
+import { clockTime, dayKey, daysLeft, shortDate, streakFrom } from "../../src/lib/format";
 import { dailyMissions, progressionFrom, XP_SESSION, XP_VISIT } from "../../src/lib/progression";
 import { waterTargetMl } from "../../src/lib/fitness";
 import {
@@ -138,10 +138,7 @@ export default function HomeScreen() {
     return (
       <Screen>
         <View style={{ paddingTop: space.xxl }}>
-          <T variant="caption" tone="faint">
-            {greeting().toUpperCase()}
-          </T>
-          <T variant="h1" style={{ marginTop: space.xs }}>
+          <T variant="h1">
             Almost there
           </T>
         </View>
@@ -180,16 +177,11 @@ export default function HomeScreen() {
       contentStyle={{ paddingBottom: tabBarSpace(insets.bottom) }}
     >
       <View style={{ paddingTop: space.md }}>
-        <T variant="caption" tone="faint">
-          {greeting().toUpperCase()}
-        </T>
-        <T variant="h1" style={{ marginTop: space.xs }}>
-          {member ? `${member.first_name}` : "Welcome"}
-        </T>
+        <T variant="h1">Today</T>
         {state.data?.org ? (
           <T variant="small" tone="muted" style={{ marginTop: 2 }}>
+            {member ? `${member.first_name}, ` : ""}
             {state.data.org.name}
-            {member?.member_code ? ` · ${member.member_code}` : ""}
           </T>
         ) : null}
       </View>
@@ -324,7 +316,7 @@ export default function HomeScreen() {
               <Row style={{ justifyContent: "space-between" }}>
                 <View style={{ flex: 1, paddingRight: space.md }}>
                   <T variant="caption" tone="faint">
-                    {view.progression.levelName.toUpperCase()}
+                    {view.progression.levelName}
                   </T>
                   <T variant="h2">{view.progression.xp.toLocaleString()} XP</T>
                   <T variant="caption" tone="muted" style={{ marginTop: 2 }}>

@@ -496,7 +496,7 @@ function BodyPane({
       <Card>
         <Row style={{ justifyContent: "space-between" }}>
           <View>
-            <T variant="caption" tone="faint">LATEST WEIGHT</T>
+            <T variant="caption" tone="faint">Latest weight</T>
             <T variant="h2">
               {latest?.weight_kg != null ? `${Number(latest.weight_kg)} kg` : "—"}
             </T>
@@ -517,7 +517,7 @@ function BodyPane({
 
         <Row gap={space.sm} style={{ marginTop: space.lg }}>
           <View style={{ flex: 1, gap: 4 }}>
-            <T variant="caption" tone="faint">WEIGHT TODAY (KG)</T>
+            <T variant="caption" tone="faint">Weight today (kg)</T>
             <TextInput
               value={weight}
               onChangeText={setWeight}

@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../src/lib/auth";
@@ -88,11 +87,6 @@ export default function LoginScreen() {
 
   return (
     <View style={s.root}>
-      <LinearGradient
-        colors={["#EDE9FB", color.canvas, color.canvas]}
-        locations={[0, 0.42, 1]}
-        style={StyleSheet.absoluteFill}
-      />
       <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -114,14 +108,14 @@ export default function LoginScreen() {
             </View>
 
             <View style={s.card}>
-              <T variant="h2">Welcome back</T>
+              <T variant="h2">Sign in</T>
               <T variant="small" tone="muted" style={{ marginTop: 4 }}>
-                Sign in with the email your gym has on file.
+                Use the email your gym has on file.
               </T>
 
               <View style={{ gap: space.lg, marginTop: space.xxl }}>
                 <View style={{ gap: space.sm }}>
-                  <T variant="smallStrong" tone="muted">EMAIL</T>
+                  <T variant="smallStrong" tone="muted">Email</T>
                   <TextInput
                     value={email}
                     onChangeText={setEmail}
@@ -137,7 +131,7 @@ export default function LoginScreen() {
                 </View>
 
                 <View style={{ gap: space.sm }}>
-                  <T variant="smallStrong" tone="muted">PASSWORD</T>
+                  <T variant="smallStrong" tone="muted">Password</T>
                   <View style={s.passwordRow}>
                     <TextInput
                       value={password}
@@ -205,7 +199,7 @@ export default function LoginScreen() {
                 <View style={s.orRow}>
                   <View style={s.orLine} />
                   <T variant="caption" tone="faint">
-                    OR
+                    or
                   </T>
                   <View style={s.orLine} />
                 </View>

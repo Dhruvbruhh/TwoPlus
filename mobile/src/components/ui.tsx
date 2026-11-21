@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { color, gutter, HIT, motion, radius, space, type } from "../lib/theme";
 import { haptic, useReducedMotion } from "../lib/feedback";
 
@@ -385,7 +386,7 @@ export function Stat({
   return (
     <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
       <T variant="caption" tone="faint" numberOfLines={1}>
-        {label.toUpperCase()}
+        {label}
       </T>
       <View style={{ flexDirection: "row", alignItems: "baseline", gap: 3 }}>
         <T variant="h2" tone={tone} numberOfLines={1}>
@@ -402,7 +403,7 @@ export function Stat({
 }
 
 export function EmptyState({
-  icon = "sparkles-outline",
+  icon = "file-tray-outline",
   title,
   body,
   action,
@@ -454,6 +455,26 @@ export function Skeleton({ height = 16, width = "100%" as const, style }: { heig
         style,
       ]}
     />
+  );
+}
+
+/**
+ * Back affordance for screens reached by a push but living in the tab
+ * navigator (Coach, Tools): iOS has no hardware back and no swipe-back there.
+ */
+export function BackButton({ label = "Back" }: { label?: string }) {
+  const router = useRouter();
+  return (
+    <Pressable
+      onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={12}
+      style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", alignSelf: "flex-start", minHeight: HIT, gap: 2, marginLeft: -6 }, pressed ? { opacity: 0.6 } : null]}
+    >
+      <Ionicons name="chevron-back" size={22} color={color.accentText} />
+      <T variant="bodyStrong" tone="accent">{label}</T>
+    </Pressable>
   );
 }
 

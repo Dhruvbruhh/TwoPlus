@@ -102,3 +102,21 @@ test("native feel: primitives carry haptics, bounded font scaling, heading roles
   const home = readFileSync(new URL("../app/(tabs)/index.tsx", import.meta.url), "utf8");
   assert.ok(home.indexOf("Today's training") < home.indexOf("Level + XP ring"), "workout comes before XP on Home");
 });
+
+test("navigation: at most five visible tabs; Coach and Tools are hidden routes with a back button", () => {
+  const layout = readFileSync(new URL("../app/(tabs)/_layout.tsx", import.meta.url), "utf8");
+  const screens = layout.match(/<Tabs\.Screen[\s\S]*?\/>/g) ?? [];
+  const visible = screens.filter((s) => !s.includes("href: null"));
+  assert.ok(visible.length <= 5, `${visible.length} visible tabs`);
+  for (const screen of ["coach", "tools"]) {
+    const src = readFileSync(new URL(`../app/(tabs)/${screen}.tsx`, import.meta.url), "utf8");
+    assert.match(src, /<BackButton/);
+  }
+});
+
+test("unslop: no shouted labels or sparkle icons", () => {
+  for (const f of ["(tabs)/index", "(tabs)/train", "(tabs)/tools", "(tabs)/profile", "(tabs)/nutrition", "scan", "login"]) {
+    const src = readFileSync(new URL(`../app/${f}.tsx`, import.meta.url), "utf8");
+    assert.doesNotMatch(src, /\.toUpperCase\(\)\s*}|>(?!(?:BMR|TDEE|BMI)<)[A-Z]{3,}( [A-Z]{2,})*<|label[:=] ?"[A-Z]{3,}[ A-Z()]*"|sparkles/, f);
+  }
+});

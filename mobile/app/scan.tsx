@@ -14,6 +14,7 @@ import {
 import { aiConfigured, type AiItem } from "../src/lib/ai";
 import { Button, Card, Row, Screen, T } from "../src/components/ui";
 import { color, radius, space } from "../src/lib/theme";
+import { humanise } from "../src/lib/format";
 
 /**
  * Food scanner: camera-first, one honest flow.
@@ -190,7 +191,7 @@ export default function ScanScreen() {
                   style={[s.slotChip, slot === sl && { backgroundColor: color.accentSoft }]}
                 >
                   <T variant="caption" tone={slot === sl ? "accent" : "muted"}>
-                    {sl.toUpperCase()}
+                    {humanise(sl)}
                   </T>
                 </Pressable>
               ))}

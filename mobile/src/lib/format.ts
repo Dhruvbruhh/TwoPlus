@@ -84,13 +84,6 @@ export function initials(first: string | null, last: string | null) {
   return `${(first ?? "").trim().charAt(0)}${(last ?? "").trim().charAt(0)}`.toUpperCase() || "?";
 }
 
-export function greeting(date = new Date()) {
-  const h = date.getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
-}
-
 /** Title-cases the enum values the database stores in lower case. */
 export function humanise(value: string | null | undefined) {
   if (!value) return "—";

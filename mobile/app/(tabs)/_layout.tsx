@@ -8,7 +8,8 @@ import { ui } from "../../src/components/ui";
 import { haptic } from "../../src/lib/feedback";
 
 /**
- * The five destinations. A floating glass bar rather than a full-bleed strip:
+ * Five destinations (the HIG/Material 3 ceiling); Coach and Tools are
+ * hidden routes reached from Train and Profile. A floating glass bar rather than a full-bleed strip:
  * it keeps the bar clear of content, sits above the gesture area, and reads as
  * one deliberate surface instead of an OS default.
  */
@@ -18,6 +19,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      backBehavior="history"
       screenListeners={{ tabPress: () => haptic.selection() }}
       screenOptions={{
         headerShown: false,
@@ -98,9 +100,7 @@ export default function TabsLayout() {
         name="coach"
         options={{
           title: "Coach",
-          tabBarIcon: ({ focused }) => (
-            <Ionicons name={focused ? "sparkles" : "sparkles-outline"} size={21} color={focused ? color.accentText : color.textFaint} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen
