@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,7 +18,6 @@ import {
   getUpcomingClasses,
   getWaterLog,
   bmiOf,
-  formatMoney,
 } from "../../src/lib/data";
 import { clockTime, dayKey, daysLeft, shortDate, streakFrom } from "../../src/lib/format";
 import { dailyMissions, progressionFrom, XP_SESSION, XP_VISIT } from "../../src/lib/progression";
@@ -28,15 +27,15 @@ import {
   Card,
   Chip,
   EmptyState,
+  HeroBand,
   ProgressBar,
   Row,
   Screen,
   SectionHeader,
   Skeleton,
-  Stat,
   T,
 } from "../../src/components/ui";
-import { color, radius, space } from "../../src/lib/theme";
+import { color, glass, radius, space } from "../../src/lib/theme";
 import { tabBarSpace } from "./_layout";
 
 /**
@@ -176,14 +175,14 @@ export default function HomeScreen() {
       }}
       contentStyle={{ paddingBottom: tabBarSpace(insets.bottom) }}
     >
+      {/* CRM page heading: quiet eyebrow, then a tight title. */}
       <View style={{ paddingTop: space.md }}>
-        <T variant="h1">Today</T>
         {state.data?.org ? (
-          <T variant="small" tone="muted" style={{ marginTop: 2 }}>
-            {member ? `${member.first_name}, ` : ""}
+          <T variant="caption" tone="faint" numberOfLines={1} style={{ marginBottom: 6 }}>
             {state.data.org.name}
           </T>
         ) : null}
+        <T variant="h1">{member ? `Hi, ${member.first_name}` : "Today"}</T>
       </View>
 
       {member && member.status !== "active" ? (
@@ -206,102 +205,26 @@ export default function HomeScreen() {
         </>
       ) : (
         <>
-          {/* Membership: the one fact that gates everything else. */}
-          <Card>
-            <Row style={{ justifyContent: "space-between" }}>
-              <T variant="caption" tone="faint">
-                MEMBERSHIP
-              </T>
-              {view?.active ? (
-                <Chip
-                  label={view.active.status === "active" ? "Active" : view.active.status}
-                  tone={view.active.status === "active" ? "success" : "warning"}
-                />
-              ) : (
-                <Chip label="None" tone="danger" />
-              )}
-            </Row>
-
-            {view?.active ? (
-              <>
-                <T variant="h2" style={{ marginTop: space.sm }}>
-                  {view.active.plan_name ?? "Membership"}
-                </T>
-                <Row style={{ marginTop: space.md, justifyContent: "space-between" }}>
-                  <View style={{ flex: 1 }}>
-                    <T variant="caption" tone="faint">
-                      RENEWS
-                    </T>
-                    <T variant="bodyStrong">{shortDate(view.active.end_date)}</T>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <T variant="caption" tone="faint">
-                      PLAN PRICE
-                    </T>
-                    <T variant="bodyStrong">
-                      {view.active.price_minor != null
-                        ? formatMoney(view.active.price_minor, state.data?.org?.currency ?? "INR")
-                        : "—"}
-                    </T>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <T variant="caption" tone="faint">
-                      {view.left != null && view.left >= 0 ? "DAYS LEFT" : "EXPIRED"}
-                    </T>
-                    <T
-                      variant="bodyStrong"
-                      tone={view.left != null && view.left < 7 ? "warning" : "text"}
-                    >
-                      {view.left != null ? Math.max(0, view.left) : "—"}
-                    </T>
-                  </View>
-                </Row>
-              </>
-            ) : (
-              <T variant="small" tone="muted" style={{ marginTop: space.sm }}>
-                No membership on file. See the front desk to start one.
-              </T>
-            )}
-          </Card>
-
-          {/* Today's training: the reason the member opened the app at the gym. */}
-          <SectionHeader
-            title="Today"
-            action={state.data?.plan ? "Open" : undefined}
-            onAction={() => router.push("/workout")}
-          />
+          {/* Today's training is the screen's one focal point and its only filled button. */}
           {state.data?.plan ? (
-            <Card onPress={() => router.push("/workout")} accessibilityLabel="Open today's workout">
-              <Row style={{ justifyContent: "space-between" }}>
-                <View style={{ flex: 1, paddingRight: space.md }}>
-                  <T variant="bodyStrong" numberOfLines={1}>
-                    {state.data.plan.plan.name}
-                  </T>
-                  <T variant="small" tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>
-                    {view?.exerciseCount ?? 0} exercises
-                    {state.data.plan.plan.goal ? ` · ${state.data.plan.plan.goal}` : ""}
-                  </T>
-                </View>
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: radius.pill,
-                    backgroundColor: color.accentSoft,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons name="barbell-outline" size={19} color={color.accentText} />
-                </View>
-              </Row>
+            <View style={s.today}>
+              <T variant="small" tone="muted">
+                Today's workout
+              </T>
+              <T variant="h2" numberOfLines={2} style={{ marginTop: 2 }}>
+                {state.data.plan.plan.name}
+              </T>
+              <T variant="small" tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>
+                {view?.exerciseCount ?? 0} exercises
+                {state.data.plan.plan.goal ? ` · ${state.data.plan.plan.goal}` : ""}
+                {view?.trainedToday ? " · done today" : ""}
+              </T>
               <Button
-                label="Start workout"
-                icon="play"
+                label={view?.trainedToday ? "Train again" : "Start workout"}
                 onPress={() => router.push("/workout")}
                 style={{ marginTop: space.lg }}
               />
-            </Card>
+            </View>
           ) : (
             <EmptyState
               icon="barbell-outline"
@@ -310,60 +233,49 @@ export default function HomeScreen() {
             />
           )}
 
-          {/* Level + XP ring: derived from real sessions and visits. */}
-          {view?.progression ? (
-            <Card>
+          {/* Membership: one line while it is fine, louder only when it needs action. */}
+          <Card>
+            {view?.active ? (
               <Row style={{ justifyContent: "space-between" }}>
                 <View style={{ flex: 1, paddingRight: space.md }}>
-                  <T variant="caption" tone="faint">
-                    {view.progression.levelName}
+                  <T variant="bodyStrong" numberOfLines={1}>
+                    {view.active.plan_name ?? "Membership"}
                   </T>
-                  <T variant="h2">{view.progression.xp.toLocaleString()} XP</T>
-                  <T variant="caption" tone="muted" style={{ marginTop: 2 }}>
-                    {view.progression.xpToNext != null
-                      ? `${view.progression.xpToNext.toLocaleString()} XP to ${nextLevelName(view.progression.levelIndex)}`
-                      : "Top level reached"}
-                  </T>
-                  <ProgressBar
-                    progress={view.progression.levelProgress}
-                    style={{ marginTop: space.md }}
-                  />
-                </View>
-                <View style={{ alignItems: "flex-end", gap: space.sm }}>
-                  <View
-                    style={{
-                      width: 54,
-                      height: 54,
-                      borderRadius: radius.pill,
-                      backgroundColor: color.accentSoft,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
+                  <T
+                    variant="small"
+                    tone={view.left != null && view.left < 7 ? "warning" : "muted"}
+                    style={{ marginTop: 2 }}
                   >
-                    <T variant="bodyStrong" tone="accent">
-                      L{view.progression.levelIndex + 1}
-                    </T>
-                  </View>
-                  <T variant="caption" tone="faint" align="right">
-                    {XP_SESSION} XP / workout{"\n"}· {XP_VISIT} / visit
+                    {view.left == null
+                      ? "No end date on file"
+                      : view.left < 0
+                        ? `Ended ${shortDate(view.active.end_date)}`
+                        : `Renews ${shortDate(view.active.end_date)} · ${view.left} ${view.left === 1 ? "day" : "days"} left`}
                   </T>
                 </View>
+                {view.active.status !== "active" ? <Chip label={view.active.status} tone="warning" /> : null}
               </Row>
-            </Card>
-          ) : null}
+            ) : (
+              <T variant="small" tone="muted">
+                No membership on file. See the front desk to start one.
+              </T>
+            )}
+          </Card>
 
-          <Card>
-            <Row gap={space.lg}>
-              <Stat label="Streak" value={String(view?.streak ?? 0)} unit="days" tone="accent" />
-              <Stat label="This month" value={String(view?.visitsThisMonth ?? 0)} unit="visits" />
-              <Stat
-                label="Weight"
-                value={view?.latest?.weight_kg != null ? String(Number(view.latest.weight_kg)) : "—"}
-                unit={view?.latest?.weight_kg != null ? "kg" : undefined}
-              />
-            </Row>
+          <View style={{ gap: space.sm }}>
+            <HeroBand
+              items={[
+                { label: "Streak", value: String(view?.streak ?? 0), unit: "days" },
+                { label: "This month", value: String(view?.visitsThisMonth ?? 0), unit: "visits" },
+                {
+                  label: "Weight",
+                  value: view?.latest?.weight_kg != null ? String(Number(view.latest.weight_kg)) : "—",
+                  unit: view?.latest?.weight_kg != null ? "kg" : undefined,
+                },
+              ]}
+            />
             {view?.weightDelta != null && Math.abs(view.weightDelta) >= 0.1 ? (
-              <Row gap={space.xs} style={{ marginTop: space.md }}>
+              <Row gap={space.xs} style={{ paddingHorizontal: space.xs }}>
                 <Ionicons
                   name={view.weightDelta < 0 ? "trending-down" : "trending-up"}
                   size={14}
@@ -375,13 +287,33 @@ export default function HomeScreen() {
                 </T>
               </Row>
             ) : null}
-          </Card>
+          </View>
+
+          {/* Level: derived from real sessions and visits. */}
+          {view?.progression ? (
+            <Card>
+              <Row style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+                <T variant="bodyStrong">
+                  Level {view.progression.levelIndex + 1} · {view.progression.levelName}
+                </T>
+                <T variant="small" tone="muted" style={{ fontVariant: ["tabular-nums"] }}>
+                  {view.progression.xp.toLocaleString()} XP
+                </T>
+              </Row>
+              <ProgressBar progress={view.progression.levelProgress} style={{ marginTop: space.md }} />
+              <T variant="caption" tone="faint" style={{ marginTop: space.sm }}>
+                {view.progression.xpToNext != null
+                  ? `${view.progression.xpToNext.toLocaleString()} XP to ${nextLevelName(view.progression.levelIndex)}. ${XP_SESSION} per workout, ${XP_VISIT} per visit.`
+                  : "Top level reached"}
+              </T>
+            </Card>
+          ) : null}
 
           {/* Daily missions: optional, derived, no nagging. */}
           {view?.missions.length ? (
             <Card>
-              <T variant="caption" tone="faint">
-                TODAY'S MISSIONS
+              <T variant="smallStrong" tone="muted">
+                Today's missions
               </T>
               <View style={{ marginTop: space.md, gap: space.md }}>
                 {view.missions.map((m) => (
@@ -408,8 +340,8 @@ export default function HomeScreen() {
           {/* Water: quick add, kept on-device. */}
           <Card>
             <Row style={{ justifyContent: "space-between" }}>
-              <T variant="caption" tone="faint">WATER TODAY · ON THIS PHONE</T>
-              <T variant="caption" tone="muted">
+              <T variant="smallStrong" tone="muted">Water today</T>
+              <T variant="small" tone="muted" style={{ fontVariant: ["tabular-nums"] }}>
                 {((view?.waterToday ?? 0) / 1000).toFixed(2)} / {((view?.waterGoal ?? 2000) / 1000).toFixed(1)} L
               </T>
             </Row>
@@ -448,18 +380,7 @@ export default function HomeScreen() {
                   Track distance, time and pace with GPS
                 </T>
               </View>
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: radius.pill,
-                  backgroundColor: color.accentSoft,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="walk-outline" size={19} color={color.accentText} />
-              </View>
+              <Ionicons name="chevron-forward" size={18} color={color.textFaint} />
             </Row>
           </Card>
 
@@ -517,3 +438,15 @@ async function quickWater(ml: number, refresh: () => Promise<void>) {
   await addWater(ml);
   await refresh();
 }
+
+const s = StyleSheet.create({
+  // The brightest pane on Home: today's workout is the focal point.
+  today: {
+    ...glass.pane,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.24)",
+    padding: space.lg,
+    borderRadius: radius.lg,
+    borderCurve: "continuous",
+  },
+});

@@ -1,117 +1,37 @@
 import React from "react";
-import { Platform, View } from "react-native";
+import { View } from "react-native";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { color, radius } from "../../src/lib/theme";
-import { ui } from "../../src/components/ui";
-import { haptic } from "../../src/lib/feedback";
+import { color } from "../../src/lib/theme";
+import { GlassDock, type DockIcon } from "../../src/components/GlassDock";
 
 /**
  * Five destinations (the HIG/Material 3 ceiling); Coach and Tools are
- * hidden routes reached from Train and Profile. A floating glass bar rather than a full-bleed strip:
- * it keeps the bar clear of content, sits above the gesture area, and reads as
- * one deliberate surface instead of an OS default.
+ * hidden routes reached from Train and Profile. The bar is the glass dock
+ * (src/components/GlassDock): a floating icon dock, not an OS default strip.
  */
 export default function TabsLayout() {
-  const insets = useSafeAreaInsets();
-  const bottom = Math.max(insets.bottom, 10);
-
   return (
     <Tabs
       backBehavior="history"
-      screenListeners={{ tabPress: () => haptic.selection() }}
+      tabBar={(props) => <GlassDock {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: color.accentText,
-        tabBarInactiveTintColor: color.textFaint,
-        tabBarAllowFontScaling: true,
-        tabBarLabelStyle: {
-          fontSize: 10.5,
-          fontFamily: ui.family.medium,
-          marginTop: 2,
-          letterSpacing: 0.2,
-        },
-        tabBarItemStyle: { paddingTop: 8 },
-        tabBarStyle: {
-          position: "absolute",
-          left: 14,
-          right: 14,
-          bottom,
-          height: 62,
-          borderRadius: radius.xxl,
-          backgroundColor: color.glass,
-          borderTopWidth: 0,
-          borderWidth: 1,
-          borderColor: color.glassBorder,
-          paddingBottom: 0,
-          paddingTop: 0,
-          elevation: 0,
-          ...Platform.select({
-            android: { elevation: 0 },
-            ios: {
-              shadowColor: "#231F30",
-              shadowOpacity: 0.1,
-              shadowRadius: 18,
-              shadowOffset: { width: 0, height: 10 },
-            },
-          }),
-        },
         sceneStyle: { backgroundColor: color.canvas },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ focused }) => (
-            <Ionicons name={focused ? "home" : "home-outline"} size={21} color={focused ? color.accentText : color.textFaint} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="train"
-        options={{
-          title: "Train",
-          tabBarIcon: ({ focused }) => (
-            <Ionicons name={focused ? "barbell" : "barbell-outline"} size={22} color={focused ? color.accentText : color.textFaint} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="community"
-        options={{
-          title: "Community",
-          tabBarIcon: ({ focused }) => (
-            <Ionicons name={focused ? "people" : "people-outline"} size={22} color={focused ? color.accentText : color.textFaint} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="nutrition"
-        options={{
-          title: "Nutrition",
-          tabBarIcon: ({ focused }) => (
-            <Ionicons name={focused ? "nutrition" : "nutrition-outline"} size={21} color={focused ? color.accentText : color.textFaint} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "Home", tabBarIcon: dockIcon("home", "home-outline") }} />
+      <Tabs.Screen name="train" options={{ title: "Train", tabBarIcon: dockIcon("barbell", "barbell-outline") }} />
+      <Tabs.Screen name="community" options={{ title: "Community", tabBarIcon: dockIcon("people", "people-outline") }} />
+      <Tabs.Screen name="nutrition" options={{ title: "Nutrition", tabBarIcon: dockIcon("nutrition", "nutrition-outline") }} />
       <Tabs.Screen
         name="coach"
         options={{
           title: "Coach",
-          href: null,
+          tabBarItemStyle: { display: "none" },
         }}
       />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ focused }) => (
-            <Ionicons name={focused ? "person" : "person-outline"} size={21} color={focused ? color.accentText : color.textFaint} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: dockIcon("person", "person-outline") }} />
       <Tabs.Screen
         name="tools"
         options={{
@@ -119,16 +39,23 @@ export default function TabsLayout() {
           // Sixth destination would break the 5-tab navigation ceiling
           // (HIG/Material 3); calculators live one tap away in Profile,
           // nutrition took the tab slot.
-          href: null,
+          tabBarItemStyle: { display: "none" },
         }}
       />
     </Tabs>
   );
 }
 
-/** Shared bottom padding so no screen hides content behind the floating bar. */
+/** Dock glyph: filled when selected. Screens without a tabBarIcon (Coach, Tools) stay out of the dock. */
+function dockIcon(on: DockIcon, off: DockIcon) {
+  return ({ focused, color: tint }: { focused: boolean; color: unknown }) => (
+    <Ionicons name={focused ? on : off} size={23} color={tint as string} />
+  );
+}
+
+/** Shared bottom padding so no screen hides content behind the floating dock. */
 export function tabBarSpace(insetBottom: number) {
-  return 96 + Math.max(insetBottom, 0);
+  return 104 + Math.max(insetBottom, 0);
 }
 
 export function Spacer() {

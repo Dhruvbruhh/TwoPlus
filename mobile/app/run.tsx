@@ -7,7 +7,7 @@ import * as Location from "expo-location";
 import { useAuth } from "../src/lib/auth";
 import { saveRun } from "../src/lib/data";
 import { formatClock, formatPaceShort, runNote, totalKm, type Point } from "../src/lib/run";
-import { Button, T } from "../src/components/ui";
+import { Backdrop, Button, T } from "../src/components/ui";
 import { color, radius, space } from "../src/lib/theme";
 
 /**
@@ -124,6 +124,7 @@ export default function RunScreen() {
   if (status === "saved") {
     return (
       <View style={[s.wrap, { paddingTop: insets.top + space.huge }]}>
+        <Backdrop />
         <View style={s.badge}>
           <Ionicons name="checkmark" size={34} color={color.success} />
         </View>
@@ -161,14 +162,15 @@ export default function RunScreen() {
 
   return (
     <View style={[s.wrap, { paddingTop: insets.top + space.huge }]}>
+      <Backdrop />
       <T variant="caption" tone="faint">
-        {status === "tracking" ? "TRACKING" : "OUTDOOR RUN"}
+        {status === "tracking" ? "Tracking" : "Outdoor run"}
       </T>
       <Text style={s.clock}>{formatClock(seconds)}</Text>
       <View style={s.stats}>
         <View style={s.stat}>
           <T variant="caption" tone="faint">
-            DISTANCE
+            Distance
           </T>
           <Text style={s.statValue}>{km.toFixed(2)}</Text>
           <T variant="caption" tone="faint">
@@ -177,7 +179,7 @@ export default function RunScreen() {
         </View>
         <View style={s.stat}>
           <T variant="caption" tone="faint">
-            PACE
+            Pace
           </T>
           <Text style={s.statValue}>{pace ? pace.split(" /km")[0] : "—"}</Text>
           <T variant="caption" tone="faint">

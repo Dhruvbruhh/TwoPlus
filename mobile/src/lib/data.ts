@@ -200,15 +200,16 @@ export async function getMeasurements(memberId: string, limit = 40) {
  * the most recent `effective_from` is the one their coach means today.
  */
 export async function getActiveWorkoutPlan(memberId: string) {
-  const assignments = await many<{ plan_id: string; effective_from: string | null }>(
+  const assignments = await many<{ id: string; plan_id: string; effective_from: string | null }>(
     supabase
       .from("member_workout_assignments")
-      .select("plan_id, effective_from")
+      .select("id, plan_id, effective_from")
       .eq("member_id", memberId)
       .eq("status", "active")
       .order("effective_from", { ascending: false })
       .limit(1),
   );
+  const assignmentId = assignments[0]?.id;
   const planId = assignments[0]?.plan_id;
   if (!planId) return null;
 
@@ -225,7 +226,7 @@ export async function getActiveWorkoutPlan(memberId: string) {
       .order("position", { ascending: true }),
   );
 
-  return { plan, exercises };
+  return { assignmentId, plan, exercises };
 }
 
 export async function getActiveDietPlan(memberId: string) {

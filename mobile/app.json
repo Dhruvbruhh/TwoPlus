@@ -5,7 +5,7 @@
     "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "twoplus",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "splash": {
@@ -21,7 +21,7 @@
         "NSCameraUsageDescription": "TwoPlus uses the camera when you take a progress photo or photograph a meal to log.",
         "NSPhotoLibraryUsageDescription": "TwoPlus reads photos you pick so you can attach progress pictures."
       },
-      "buildNumber": "6"
+      "buildNumber": "12"
     },
     "android": {
       "package": "fit.twoplus.member",
@@ -40,7 +40,7 @@
         "SYSTEM_ALERT_WINDOW",
         "ACTIVITY_RECOGNITION"
       ],
-      "versionCode": 6
+      "versionCode": 12
     },
     "plugins": [
       "expo-router",

@@ -41,7 +41,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: color.canvas }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <StatusBar style="dark" />
+          <StatusBar style="light" />
           <Gate />
         </AuthProvider>
       </SafeAreaProvider>

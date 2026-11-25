@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Pressable, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -42,7 +43,7 @@ import {
   Stat,
   T,
 } from "../../src/components/ui";
-import { color, radius, space } from "../../src/lib/theme";
+import { color, glass, radius, space } from "../../src/lib/theme";
 import { tabBarSpace } from "./_layout";
 
 type Pane = "membership" | "payments" | "visits" | "body";
@@ -139,12 +140,12 @@ export default function ProfileScreen() {
             <T variant="small" tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>
               {member?.email ?? session?.user.email ?? ""}
             </T>
+            <T variant="small" tone="faint" numberOfLines={1} style={{ marginTop: 2 }}>
+              {[state.data?.org?.name, member?.member_code].filter(Boolean).join(" · ")}
+            </T>
           </View>
-        </Row>
-        <Row gap={space.sm} style={{ marginTop: space.md, flexWrap: "wrap" }}>
-          {member?.member_code ? <Chip label={member.member_code} tone="surface" icon="pricetag-outline" /> : null}
-          {member ? <Chip label={humanise(member.status)} tone={member.status === "active" ? "success" : "warning"} /> : null}
-          {state.data?.org ? <Chip label={state.data.org.name} tone="accent" /> : null}
+          {/* Status only earns a label when it needs attention. */}
+          {member && member.status !== "active" ? <Chip label={humanise(member.status)} tone="warning" /> : null}
         </Row>
       </View>
 
@@ -165,19 +166,19 @@ export default function ProfileScreen() {
               <Row style={{ justifyContent: "space-between", marginTop: space.md }}>
                 <View>
                   <T variant="caption" tone="faint">
-                    STARTED
+                    Started
                   </T>
                   <T variant="small">{shortDate(m.start_date)}</T>
                 </View>
                 <View>
                   <T variant="caption" tone="faint">
-                    ENDS
+                    Ends
                   </T>
                   <T variant="small">{shortDate(m.end_date)}</T>
                 </View>
                 <View>
                   <T variant="caption" tone="faint">
-                    PRICE
+                    Price
                   </T>
                   <T variant="small">
                     {m.price_minor != null ? formatMoney(m.price_minor, state.data?.org?.currency ?? "INR") : "—"}
@@ -306,36 +307,66 @@ export default function ProfileScreen() {
         <ProgressPhotos organizationId={member.organization_id} memberId={member.id} />
       ) : null}
 
-      <View style={{ marginTop: space.md }}>
-        <Button
-          label="Fitness tools"
-          variant="secondary"
-          icon="calculator-outline"
-          onPress={() => router.push("/tools")}
-        />
-        <Button
-          label="Sign out"
-          variant="secondary"
-          icon="log-out-outline"
-          onPress={() => void confirmSignOut()}
-          style={{ marginTop: space.sm }}
-        />
-        <YourData />
-        <T variant="caption" tone="faint" align="center" style={{ marginTop: space.md }}>
-          Ask your gym to correct any detail on this page.
-        </T>
-      </View>
+      <SectionHeader title="Account" />
+      <Account onTools={() => router.push("/tools")} onSignOut={() => void confirmSignOut()} />
+      <T variant="caption" tone="faint" align="center">
+        Ask your gym to correct any detail on this page.
+      </T>
     </Screen>
   );
 }
 
+/** One settings row: icon, label, and a chevron when it opens somewhere. */
+function ListRow({
+  icon,
+  label,
+  onPress,
+  danger,
+  chevron,
+  busy,
+  first,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+  chevron?: boolean;
+  busy?: boolean;
+  first?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={busy ? undefined : onPress}
+      accessibilityRole="button"
+      accessibilityState={{ busy: !!busy }}
+      android_ripple={{ color: color.line }}
+      style={({ pressed }) => [
+        { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 52, paddingHorizontal: space.lg },
+        first ? null : { borderTopWidth: 1, borderTopColor: color.line },
+        pressed ? { backgroundColor: color.line } : null,
+      ]}
+    >
+      <Ionicons name={icon} size={19} color={danger ? color.danger : color.textMuted} />
+      <T variant="body" style={{ flex: 1, color: danger ? color.danger : color.text }}>
+        {label}
+      </T>
+      {busy ? (
+        <ActivityIndicator color={color.textMuted} />
+      ) : chevron ? (
+        <Ionicons name="chevron-forward" size={17} color={color.textFaint} />
+      ) : null}
+    </Pressable>
+  );
+}
+
 /**
- * Your data: export as a share sheet, then deletion with a typed confirmation.
- * Mirrors the web app's Phase 18 section; the RPC is the same one the web uses.
+ * Account actions as one grouped list. Export shares a JSON file; deletion
+ * sits behind its own row and a typed confirmation, using the same RPC as the web app.
  */
-function YourData() {
+function Account({ onTools, onSignOut }: { onTools: () => void; onSignOut: () => void }) {
   const { signOut } = useAuth();
   const [confirm, setConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [working, setWorking] = useState<"" | "export" | "delete">("");
 
   async function doExport() {
@@ -375,64 +406,51 @@ function YourData() {
   const ready = confirm.trim().toUpperCase() === "DELETE";
 
   return (
-    <View
-      accessibilityLabel="Your data"
-      style={{
-        marginTop: space.sm,
-        padding: space.md,
-        borderRadius: radius.md,
-        borderWidth: 1,
-        borderColor: color.line,
-        backgroundColor: color.surface,
-      }}
-    >
-      <T variant="bodyStrong">Your data</T>
-      <T variant="caption" tone="muted" style={{ marginTop: 4 }}>
-        Download everything this app holds about you, or remove your account for
-        good. Deleting erases your training log, measurements, bookings, photos
-        and this sign-in. Payments and invoices stay with your gym, because they
-        are its financial records.
-      </T>
-      <Button
-        label={working === "export" ? "Preparing." : "Export my data"}
-        variant="secondary"
-        icon="download-outline"
-        loading={working === "export"}
-        disabled={working === "delete"}
-        onPress={() => void doExport()}
-        style={{ marginTop: space.md }}
-      />
-      <T variant="caption" tone="faint" style={{ marginTop: space.md }}>
-        To delete, type DELETE below. This cannot be undone.
-      </T>
-      <TextInput
-        value={confirm}
-        onChangeText={setConfirm}
-        autoCapitalize="characters"
-        autoCorrect={false}
-        placeholder="DELETE"
-        placeholderTextColor={color.textFaint}
-        accessibilityLabel="Type DELETE to confirm account deletion"
-        style={{
-          minHeight: 44,
-          marginTop: space.xs,
-          borderRadius: radius.md,
-          borderWidth: 1,
-          borderColor: ready ? color.danger : color.line,
-          backgroundColor: color.surfaceRaised,
-          paddingHorizontal: space.md,
-          color: color.text,
+    <View style={{ ...glass.pane, borderRadius: radius.lg, borderCurve: "continuous", overflow: "hidden" }}>
+      <ListRow first icon="calculator-outline" label="Fitness tools" chevron onPress={onTools} />
+      <ListRow icon="download-outline" label="Export my data" busy={working === "export"} onPress={() => void doExport()} />
+      <ListRow icon="log-out-outline" label="Sign out" onPress={onSignOut} />
+      <ListRow
+        icon={deleting ? "close-outline" : "trash-outline"}
+        label={deleting ? "Keep my account" : "Delete account"}
+        danger={!deleting}
+        onPress={() => {
+          setDeleting((v) => !v);
+          setConfirm("");
         }}
       />
-      <Button
-        label="Delete my account"
-        variant="danger"
-        icon="trash-outline"
-        loading={working === "delete"}
-        disabled={!ready || working === "export"}
-        onPress={doDelete}
-        style={{ marginTop: space.sm }}
-      />
+      {deleting ? (
+        <View style={{ padding: space.lg, paddingTop: space.sm, gap: space.sm }}>
+          <T variant="small" tone="muted">
+            This erases your training log, measurements, bookings, photos and this sign-in. Payments and invoices
+            stay with your gym as its financial records. It cannot be undone.
+          </T>
+          <TextInput
+            value={confirm}
+            onChangeText={setConfirm}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            placeholder="Type DELETE to confirm"
+            placeholderTextColor={color.textFaint}
+            accessibilityLabel="Type DELETE to confirm account deletion"
+            style={{
+              ...glass.well,
+              minHeight: 46,
+              borderRadius: radius.md,
+              borderColor: ready ? color.danger : glass.well.borderColor,
+              paddingHorizontal: space.md,
+              color: color.text,
+            }}
+          />
+          <Button
+            label="Delete my account"
+            variant="danger"
+            loading={working === "delete"}
+            disabled={!ready || working === "export"}
+            onPress={doDelete}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -494,6 +512,7 @@ function BodyPane({
   return (
     <>
       <Card>
+        {latest ? (
         <Row style={{ justifyContent: "space-between" }}>
           <View>
             <T variant="caption" tone="faint">Latest weight</T>
@@ -508,14 +527,15 @@ function BodyPane({
             />
           ) : null}
         </Row>
+        ) : null}
         {latest ? (
-          <T variant="caption" tone="faint" style={{ marginTop: space.sm }}>
+          <T variant="caption" tone="faint" style={{ marginTop: space.sm, marginBottom: space.lg }}>
             Measured {shortDate(latest.measured_on)}
             {latest.body_fat_pct != null ? ` · ${Number(latest.body_fat_pct)}% fat` : ""}
           </T>
         ) : null}
 
-        <Row gap={space.sm} style={{ marginTop: space.lg }}>
+        <Row gap={space.sm}>
           <View style={{ flex: 1, gap: 4 }}>
             <T variant="caption" tone="faint">Weight today (kg)</T>
             <TextInput
@@ -524,11 +544,9 @@ function BodyPane({
               keyboardType="decimal-pad"
               selectTextOnFocus
               style={{
+                ...glass.well,
                 minHeight: 48,
                 borderRadius: radius.md,
-                borderWidth: 1,
-                borderColor: color.line,
-                backgroundColor: color.surface,
                 paddingHorizontal: space.md,
                 color: color.text,
               }}

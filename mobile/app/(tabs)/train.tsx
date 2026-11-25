@@ -118,9 +118,6 @@ export default function TrainScreen() {
     >
       <View style={{ paddingTop: space.md }}>
         <T variant="h1">Train</T>
-        <T variant="small" tone="muted" style={{ marginTop: 2 }}>
-          Everything your coach has set, and everything you have done.
-        </T>
       </View>
 
       <Card onPress={() => router.push("/coach")} accessibilityLabel="Open your coach">

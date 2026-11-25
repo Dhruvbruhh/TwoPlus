@@ -93,7 +93,7 @@ export default function CoachScreen() {
       {insights.length ? (
         <Card>
           <T variant="caption" tone="faint">
-            THIS WEEK
+            This week
           </T>
           <View style={{ marginTop: space.md, gap: space.md }}>
             {insights.map((i) => (

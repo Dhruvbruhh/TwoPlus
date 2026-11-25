@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -18,8 +18,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { color, gutter, HIT, motion, radius, space, type } from "../lib/theme";
+import { color, glass, gutter, HIT, motion, radius, space, type } from "../lib/theme";
 import { haptic, useReducedMotion } from "../lib/feedback";
 
 /**
@@ -114,6 +115,16 @@ export function T({
   );
 }
 
+/** The CRM's gym photo, frosted once and dimmed; panels above it read as glass. */
+export function Backdrop() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Image source={require("../../assets/backdrop.jpg")} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={{ left: "32%" }} blurRadius={10} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: color.scrim }]} />
+    </View>
+  );
+}
+
 export function Card({
   children,
   style,
@@ -161,6 +172,7 @@ export function Screen({
   const Container = Platform.OS === "web" ? View : SafeAreaView;
   return (
     <Container style={s.screen} edges={edges}>
+      <Backdrop />
       {scroll ? (
         // iOS needs padding so focused inputs clear the keyboard; Android
         // resizes the window itself (adjustResize).
@@ -181,7 +193,7 @@ export function Screen({
                     onRefresh={onRefresh}
                     tintColor={color.textMuted}
                     colors={[color.accent]}
-                    progressBackgroundColor={color.surfaceRaised}
+                    progressBackgroundColor={color.surfaceSolid}
                   />
                 ),
               }
@@ -217,17 +229,18 @@ export function Button({
   compact?: boolean;
 }) {
   const inert = disabled || loading;
-  const bg =
+  // Capsules: primary is a lit white capsule, the rest are pieces of glass.
+  const look: ViewStyle =
     variant === "primary"
-      ? color.accent
+      ? s.buttonPrimary
       : variant === "secondary"
-        ? color.surfaceRaised
+        ? glass.control
         : variant === "danger"
-          ? color.dangerSoft
-          : "transparent";
+          ? { ...glass.control, backgroundColor: color.dangerSoft, borderColor: "rgba(240,146,132,0.35)" }
+          : { backgroundColor: "transparent" };
   const fg =
     variant === "primary"
-      ? "#FFF6F7"
+      ? color.onAccent
       : variant === "danger"
         ? color.danger
         : color.text;
@@ -248,13 +261,11 @@ export function Button({
       android_ripple={{ color: color.lineStrong }}
       style={({ pressed }) => [
         s.button,
+        look,
         {
-          backgroundColor: bg,
           minHeight: compact ? HIT - 4 : 52,
           opacity: inert ? 0.5 : pressed ? 0.88 : 1,
-          transform: [{ scale: pressed && !inert ? 0.98 : 1 }],
-          borderWidth: variant === "secondary" || variant === "ghost" ? 1 : 0,
-          borderColor: variant === "ghost" ? "transparent" : color.line,
+          transform: [{ scale: pressed && !inert ? 0.97 : 1 }],
         },
         style,
       ]}
@@ -294,6 +305,7 @@ export function Field({
   error?: string | null;
   style?: StyleProp<ViewStyle>;
 }) {
+  const [focused, setFocused] = useState(false);
   return (
     <View style={[{ gap: space.sm }, style]}>
       <T variant="smallStrong" tone="muted">
@@ -302,11 +314,21 @@ export function Field({
       <TextInput
         placeholderTextColor={color.textFaint}
         selectionColor={color.accentBright}
+        {...props}
+        onFocus={(e) => {
+          setFocused(true);
+          props.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          props.onBlur?.(e);
+        }}
         style={[
           s.input,
+          // Focus: the rim lights up, plus a soft white halo.
+          focused ? { borderColor: "rgba(255,255,255,0.7)", boxShadow: "0 0 0 3px rgba(255,255,255,0.18), inset 0 1px 3px rgba(0,0,0,0.35)" } : null,
           error ? { borderColor: color.danger } : null,
         ]}
-        {...props}
       />
       {error ? (
         <T variant="small" tone="danger">
@@ -362,6 +384,7 @@ export function Chip({
     info: { bg: color.infoSoft, fg: color.info },
   }[tone];
 
+  // A status label: tinted fill and coloured text carry the state; no dot or outline.
   return (
     <View style={[s.chip, { backgroundColor: map.bg }]}>
       {icon ? <Ionicons name={icon} size={12} color={map.fg} style={{ marginRight: 5 }} /> : null}
@@ -402,6 +425,42 @@ export function Stat({
   );
 }
 
+/**
+ * The CRM's figures band: solid ink, figures split by rules instead of
+ * separate floating cards. Use once per screen for the headline numbers.
+ */
+export function HeroBand({ items }: { items: { label: string; value: string; unit?: string; note?: string }[] }) {
+  return (
+    <View style={s.band}>
+      {items.map((it, i) => (
+        <View
+          key={it.label}
+          style={[s.bandCell, i > 0 ? { borderLeftWidth: 1, borderLeftColor: "rgba(244,247,246,0.16)" } : null]}
+        >
+          <T variant="caption" tone="muted" numberOfLines={1}>
+            {it.label}
+          </T>
+          <View style={{ flexDirection: "row", alignItems: "baseline", gap: 3 }}>
+            <T variant="h1" numberOfLines={1} style={{ fontVariant: ["tabular-nums"] }}>
+              {it.value}
+            </T>
+            {it.unit ? (
+              <T variant="caption" tone="muted">
+                {it.unit}
+              </T>
+            ) : null}
+          </View>
+          {it.note ? (
+            <T variant="caption" tone="faint" numberOfLines={1}>
+              {it.note}
+            </T>
+          ) : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function EmptyState({
   icon = "file-tray-outline",
   title,
@@ -415,19 +474,20 @@ export function EmptyState({
   action?: string;
   onAction?: () => void;
 }) {
+  // Says what is missing and the one thing that fills it; left-aligned like the rest of the screen.
   return (
     <View style={s.empty}>
-      <View style={s.emptyIcon}>
-        <Ionicons name={icon} size={22} color={color.textFaint} />
-      </View>
-      <T variant="bodyStrong" align="center">
-        {title}
-      </T>
-      <T variant="small" tone="muted" align="center" style={{ maxWidth: 300 }}>
+      <Row gap={space.sm}>
+        <Ionicons name={icon} size={18} color={color.textFaint} />
+        <T variant="bodyStrong" style={{ flex: 1 }}>
+          {title}
+        </T>
+      </Row>
+      <T variant="small" tone="muted">
         {body}
       </T>
       {action && onAction ? (
-        <Button label={action} onPress={onAction} variant="secondary" compact style={{ marginTop: space.sm }} />
+        <Button label={action} onPress={onAction} variant="secondary" compact style={{ marginTop: space.sm, alignSelf: "flex-start" }} />
       ) : null}
     </View>
   );
@@ -525,9 +585,10 @@ export function ProgressBar({
 }
 
 /**
- * Segmented pane switcher (Train, Profile). Scrolls sideways when large text
- * makes the labels wider than the screen, announces itself as a tab list,
- * and ticks on change.
+ * Spotlight pane switcher (Train, Profile), after VengeanceUI's spotlight-navbar.
+ * A glass capsule of plain labels; a soft light and a thin bright line sit under
+ * the selected label and spring to the next one. Scrolls sideways when large
+ * text makes it wider than the screen; announces itself as a tab list.
  */
 export function Segmented<K extends string>({
   items,
@@ -538,42 +599,69 @@ export function Segmented<K extends string>({
   value: K;
   onChange: (next: K) => void;
 }) {
+  const reduced = useReducedMotion();
+  const [spots, setSpots] = useState<Partial<Record<K, { x: number; w: number }>>>({});
+  const [lightX] = useState(() => new Animated.Value(0));
+  const placed = useRef(false);
+  const active = spots[value];
+
+  useEffect(() => {
+    if (!active) return;
+    const to = active.x + active.w / 2;
+    if (reduced || !placed.current) {
+      lightX.setValue(to);
+      placed.current = true;
+    } else {
+      Animated.spring(lightX, { toValue: to, stiffness: 200, damping: 20, mass: 1, useNativeDriver: true }).start();
+    }
+  }, [active?.x, active?.w, reduced, lightX]);
+
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       accessibilityRole="tablist"
-      contentContainerStyle={{ gap: space.xs, paddingRight: space.lg }}
-      style={{ marginHorizontal: -gutter, paddingHorizontal: gutter, flexGrow: 0 }}
+      contentContainerStyle={{ paddingHorizontal: gutter }}
+      style={{ marginHorizontal: -gutter, flexGrow: 0 }}
     >
-      {items.map((p) => {
-        const on = value === p.key;
-        return (
-          <Pressable
-            key={p.key}
-            onPress={() => {
-              if (on) return;
-              haptic.selection();
-              onChange(p.key);
-            }}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
-            hitSlop={{ top: 4, bottom: 4 }}
-            style={({ pressed }) => [
-              s.segment,
-              on ? s.segmentOn : null,
-              pressed && !on ? { opacity: 0.75 } : null,
-            ]}
-          >
-            <T variant="smallStrong" tone={on ? "accent" : "muted"}>
-              {p.label}
-            </T>
-          </Pressable>
-        );
-      })}
+      <View style={s.spotNav}>
+        {active ? (
+          <>
+            <Animated.View pointerEvents="none" style={[s.spotGlow, { transform: [{ translateX: Animated.subtract(lightX, SPOT_GLOW / 2) }] }]} />
+            <Animated.View pointerEvents="none" style={[s.spotLine, { transform: [{ translateX: Animated.subtract(lightX, SPOT_LINE / 2) }] }]} />
+          </>
+        ) : null}
+        {items.map((p) => {
+          const on = value === p.key;
+          return (
+            <Pressable
+              key={p.key}
+              onLayout={(e) => {
+                const { x, width } = e.nativeEvent.layout;
+                setSpots((prev) => (prev[p.key]?.x === x && prev[p.key]?.w === width ? prev : { ...prev, [p.key]: { x, w: width } }));
+              }}
+              onPress={() => {
+                if (on) return;
+                haptic.selection();
+                onChange(p.key);
+              }}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on }}
+              style={({ pressed }) => [s.spotItem, pressed && !on ? { opacity: 0.7 } : null]}
+            >
+              <T variant="smallStrong" style={{ color: on ? color.text : color.textFaint }}>
+                {p.label}
+              </T>
+            </Pressable>
+          );
+        })}
+      </View>
     </ScrollView>
   );
 }
+
+const SPOT_GLOW = 120;
+const SPOT_LINE = 60;
 
 export function Row({
   children,
@@ -593,11 +681,9 @@ export function Row({
 
 const s = StyleSheet.create({
   card: {
+    ...glass.pane,
     borderRadius: radius.lg,
     borderCurve: "continuous",
-    borderWidth: 1,
-    borderColor: color.line,
-    backgroundColor: color.surface,
     padding: space.lg,
     gap: space.xs,
   },
@@ -606,17 +692,20 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: radius.md,
-    borderCurve: "continuous",
+    borderRadius: radius.pill,
     paddingHorizontal: space.lg,
   },
+  // A lit capsule: white with a faint top-to-bottom fall-off and a crisp top rim.
+  buttonPrimary: {
+    backgroundColor: color.accent,
+    backgroundImage: "linear-gradient(180deg, #FFFFFF 0%, #E4E9EB 100%)",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.28), inset 0 1px 0 #FFFFFF, inset 0 -2px 4px rgba(0,0,0,0.1)",
+  },
   input: {
+    ...glass.well,
     minHeight: 50,
     borderRadius: radius.md,
     borderCurve: "continuous",
-    borderWidth: 1,
-    borderColor: color.line,
-    backgroundColor: color.surface,
     paddingHorizontal: space.lg,
     color: color.text,
     ...type.body,
@@ -634,40 +723,58 @@ const s = StyleSheet.create({
     alignItems: "center",
     alignSelf: "flex-start",
     borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    boxShadow: "inset 0 1px 0.5px rgba(255,255,255,0.25)",
+  },
+  band: {
+    ...glass.pane,
+    flexDirection: "row",
+    borderRadius: radius.lg,
+    borderCurve: "continuous",
+    overflow: "hidden",
+  },
+  bandCell: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+    paddingVertical: space.lg,
     paddingHorizontal: space.md,
-    paddingVertical: 4,
   },
-  segment: {
-    paddingHorizontal: space.lg,
-    minHeight: 40,
-    justifyContent: "center",
+  spotNav: {
+    ...glass.pane,
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    paddingHorizontal: space.sm,
     borderRadius: radius.pill,
-    backgroundColor: color.surfaceRaised,
-    borderWidth: 1,
-    borderColor: "transparent",
+    overflow: "hidden",
   },
-  segmentOn: {
-    backgroundColor: color.accentSoft,
-    borderColor: "rgba(123,92,214,0.4)",
+  spotItem: { height: 44, paddingHorizontal: space.md, justifyContent: "center" },
+  // Soft light rising from the bottom edge under the selected label.
+  spotGlow: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    width: SPOT_GLOW,
+    height: 44,
+    backgroundImage: "radial-gradient(circle at 50% 100%, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 60%)",
+  },
+  // The thin bright line on the bottom edge.
+  spotLine: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    width: SPOT_LINE,
+    height: 2,
+    backgroundImage: "linear-gradient(90deg, rgba(255,255,255,0) 0%, #FFFFFF 50%, rgba(255,255,255,0) 100%)",
   },
   empty: {
-    alignItems: "center",
+    ...glass.pane,
     gap: space.sm,
-    paddingVertical: space.xxl,
-    paddingHorizontal: space.lg,
+    padding: space.lg,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: color.line,
-    borderStyle: "dashed",
-  },
-  emptyIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: color.surfaceRaised,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: space.xs,
+    borderCurve: "continuous",
   },
 });
 

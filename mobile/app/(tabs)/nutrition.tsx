@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Pressable, TextInput, View, StyleSheet } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, TextInput, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,6 +33,7 @@ import {
 } from "../../src/components/ui";
 import { color, radius, space, type } from "../../src/lib/theme";
 import { tabBarSpace } from "./_layout";
+import { GooeySearch } from "../../src/components/GooeySearch";
 
 /**
  * Nutrition: one honest day at a glance. Calories against the FDA baseline
@@ -119,6 +120,21 @@ export default function NutritionScreen() {
 
   const today = dayKey();
 
+  // Foods logged before on this phone, newest first, one per name: what the sheet's search looks through.
+  const pastFoods = useMemo(() => {
+    const seen = new Set<string>();
+    return (state.data?.history ?? [])
+      .flatMap((h) => h.meals)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .flatMap((m) => m.items)
+      .filter((f) => {
+        const k = f.name.trim().toLowerCase();
+        if (!k || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+  }, [state.data]);
+
   return (
     <Screen
       refreshing={state.refreshing}
@@ -176,7 +192,7 @@ export default function NutritionScreen() {
           <Card>
             <Row style={{ justifyContent: "space-between" }}>
               <T variant="caption" tone="faint">
-                WATER TODAY
+                Water today
               </T>
               <T variant="caption" tone="muted">
                 {((view?.waterToday ?? 0) / 1000).toFixed(2)} / {((view?.waterGoal ?? 2000) / 1000).toFixed(1)} L
@@ -302,6 +318,7 @@ export default function NutritionScreen() {
       {/* Manual add sheet: minimal fields, honest about being an estimate. */}
       {adding && draft ? (
         <ManualAdd
+          pastFoods={pastFoods}
           draft={draft}
           setDraft={setDraft}
           onSave={quickAdd}
@@ -368,7 +385,7 @@ function CalorieRing({
       <View style={{ alignItems: "center" }}>
         <T variant="display">{value.toLocaleString()}</T>
         <T variant="caption" tone="faint">
-          OF {target.toLocaleString()} KCAL
+          of {target.toLocaleString()} kcal
         </T>
         <T variant="caption" tone={over > 0 ? "warning" : "success"} style={{ marginTop: 2 }}>
           {over > 0 ? "over target" : `${Math.round(remaining)} left`}
@@ -428,21 +445,50 @@ function ItemStepper({ item, onChange }: { item: FoodItem; onChange: (next: { se
 
 /** Manual add overlay: plain fields, saved as a manual (non-AI) entry. */
 function ManualAdd({
+  pastFoods,
   draft,
   setDraft,
   onSave,
   onClose,
 }: {
+  pastFoods: FoodItem[];
   draft: Draft;
   setDraft: (d: Draft) => void;
   onSave: () => Promise<void>;
   onClose: () => void;
 }) {
   return (
-    <View style={st.sheetWrap}>
+    // A Modal so the floating tab bar cannot cover Save; also gives Android back.
+    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
+    <KeyboardAvoidingView style={st.sheetWrap} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
       <View style={st.sheet}>
         <T variant="h3">Add meal</T>
+        {pastFoods.length ? (
+          <View style={{ marginTop: space.md }}>
+            <GooeySearch
+              buttonLabel="Search past meals"
+              placeholder="Food you have logged"
+              search={(q) =>
+                pastFoods
+                  .filter((f) => f.name.toLowerCase().includes(q.toLowerCase()))
+                  .map((f) => ({ key: f.name, label: f.name, detail: `${Math.round(f.calories)} kcal` }))
+              }
+              onSelect={(r) => {
+                const f = pastFoods.find((x) => x.name === r.key);
+                if (!f) return;
+                setDraft({
+                  ...draft,
+                  name: f.name,
+                  calories: String(Math.round(f.calories)),
+                  protein: String(f.protein_g),
+                  carbs: String(f.carbs_g),
+                  fat: String(f.fat_g),
+                });
+              }}
+            />
+          </View>
+        ) : null}
         <Row gap={space.xs} style={{ marginTop: space.md, flexWrap: "wrap" }}>
           {MEAL_SLOTS.map((s) => (
             <Pressable
@@ -472,7 +518,8 @@ function ManualAdd({
           <Button label="Save" onPress={onSave} style={{ flex: 1 }} />
         </Row>
       </View>
-    </View>
+    </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -513,13 +560,13 @@ const st = StyleSheet.create({
   },
   sheetWrap: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(35,31,48,0.35)",
+    backgroundColor: color.sheetScrim,
     alignItems: "center",
     justifyContent: "flex-end",
   },
   sheet: {
     width: "100%",
-    backgroundColor: color.surface,
+    backgroundColor: color.surfaceSolid,
     borderTopLeftRadius: radius.xxl,
     borderTopRightRadius: radius.xxl,
     padding: space.xl,

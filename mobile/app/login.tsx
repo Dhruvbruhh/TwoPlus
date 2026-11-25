@@ -12,8 +12,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../src/lib/auth";
-import { Button, T, ui } from "../src/components/ui";
-import { color, gutter, radius, space, type } from "../src/lib/theme";
+import { Backdrop, Button, T, ui } from "../src/components/ui";
+import { color, glass, gutter, radius, space, type } from "../src/lib/theme";
 
 /**
  * Sign in.
@@ -87,6 +87,7 @@ export default function LoginScreen() {
 
   return (
     <View style={s.root}>
+      <Backdrop />
       <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -99,12 +100,9 @@ export default function LoginScreen() {
           >
             <View style={s.brand}>
               <View style={s.mark}>
-                <T variant="h1" style={{ color: color.text, letterSpacing: -1 }}>+</T>
+                <T variant="h1" style={{ color: color.onAccent, letterSpacing: -1 }}>+</T>
               </View>
               <T variant="h1">TwoPlus</T>
-              <T variant="small" tone="muted" style={{ marginTop: 2 }}>
-                Your gym, in your pocket
-              </T>
             </View>
 
             <View style={s.card}>
@@ -143,7 +141,7 @@ export default function LoginScreen() {
                       selectionColor={color.accentBright}
                       editable={!busy}
                       onSubmitEditing={submit}
-                      style={[s.input, { flex: 1, borderWidth: 0, paddingRight: 0 }]}
+                      style={[s.input, { flex: 1, borderWidth: 0, paddingRight: 0, backgroundColor: "transparent", boxShadow: "none" }]}
                     />
                     <Pressable
                       onPress={() => setReveal((v) => !v)}
@@ -255,30 +253,25 @@ const s = StyleSheet.create({
     marginBottom: space.sm,
   },
   card: {
+    ...glass.bar,
     borderRadius: radius.xxl,
-    borderWidth: 1,
-    borderColor: color.glassBorder,
-    backgroundColor: color.glass,
+    borderCurve: "continuous",
     padding: space.xxl,
   },
   input: {
+    ...glass.well,
     minHeight: 52,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: color.line,
-    backgroundColor: color.surface,
     paddingHorizontal: space.lg,
     color: color.text,
     ...type.body,
     fontFamily: ui.family.regular,
   },
   passwordRow: {
+    ...glass.well,
     flexDirection: "row",
     alignItems: "center",
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: color.line,
-    backgroundColor: color.surface,
   },
   error: {
     flexDirection: "row",
@@ -295,11 +288,9 @@ const s = StyleSheet.create({
   },
   orLine: { flex: 1, height: 1, backgroundColor: color.line },
   googleBtn: {
+    ...glass.control,
     minHeight: 52,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: color.line,
-    backgroundColor: color.surface,
+    borderRadius: radius.pill,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

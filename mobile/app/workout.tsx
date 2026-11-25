@@ -32,7 +32,7 @@ import {
   writeOutbox,
   type PendingSet,
 } from "../src/lib/outbox";
-import { Button, Card, Chip, EmptyState, Row, Skeleton, T } from "../src/components/ui";
+import { Backdrop, Button, Card, Chip, EmptyState, Row, Skeleton, T } from "../src/components/ui";
 import { color, radius, space, type } from "../src/lib/theme";
 import { ui } from "../src/components/ui";
 
@@ -110,7 +110,9 @@ export default function WorkoutScreen() {
 
   // Create or resume today's session once the plan is known.
   useEffect(() => {
-    if (bootstrapped.current || !member || plan.loading) return;
+    const active = plan.data;
+    // No plan means nothing to log, and a null assignment would land on the day's run row.
+    if (bootstrapped.current || !member || plan.loading || !active) return;
     bootstrapped.current = true;
     void (async () => {
       setPending(await readOutbox(member.id));
@@ -118,7 +120,8 @@ export default function WorkoutScreen() {
         const row = await startSession({
           memberId: member.id,
           organizationId: member.organization_id,
-          planId: plan.data?.plan.id ?? null,
+          planId: active.plan.id,
+          assignmentId: active.assignmentId,
         });
         setSessionId(row.id);
         // Resume the clock from when the session began, not from this open.
@@ -261,6 +264,7 @@ export default function WorkoutScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: color.canvas }} edges={["top", "bottom"]}>
+      <Backdrop />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={{ paddingHorizontal: space.xl, paddingTop: space.xl }}>
           <Row style={{ justifyContent: "space-between" }}>
@@ -269,7 +273,7 @@ export default function WorkoutScreen() {
             </Pressable>
             <View style={{ alignItems: "center" }} accessible accessibilityLabel={`Elapsed ${Math.floor(elapsed / 60)} minutes`}>
               <T variant="caption" tone="faint">
-                ELAPSED
+                Elapsed
               </T>
               <T variant="h2" style={{ fontVariant: ["tabular-nums"] }}>
                 {mm}:{ss}
@@ -381,7 +385,7 @@ export default function WorkoutScreen() {
                       <Row gap={space.sm}>
                         <View style={{ flex: 1, gap: 4 }}>
                           <T variant="caption" tone="faint">
-                            REPS
+                            Reps
                           </T>
                           <TextInput
                             value={reps}
