@@ -12,8 +12,10 @@ project in another region changes latency for every query.
 not edited by hand; anything done in the SQL editor that is not also in a file is
 lost at the next restore.
 
-Current state: `0001` through `0015`, applied in order. To confirm what the
-database has actually run:
+Current state: `0001` through `0015`, applied in order. `0005` and `0016` are
+written but unapplied; applying them is an owner procedure, not an edit here —
+see `docs/MIGRATION-CHECKLIST.md` for the preflight, backup, repair, push,
+post-check and rollback steps. To confirm what the database has actually run:
 
 ```bash
 npx supabase migration list --linked

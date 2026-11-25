@@ -9,6 +9,27 @@ import {
 } from "@/lib/attempt-limit";
 import { AuthLayout } from "./AuthLayout";
 
+const GOOGLE_SVG = (
+  <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+    <path
+      fill="#4285F4"
+      d="M45.1 24.5c0-1.6-.1-2.8-.4-4H24v7.3h12c-.2 2-1.5 5-4.5 7l6.9 5.4c4.1-3.8 6.7-9.4 6.7-15.7z"
+    />
+    <path
+      fill="#34A853"
+      d="M24 46c6 0 11-2 14.6-5.4l-6.9-5.4c-1.9 1.3-4.4 2.2-7.7 2.2-5.9 0-10.9-3.9-12.7-9.3l-7.3 5.6C7.7 41.2 15.3 46 24 46z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M11.3 28.1c-.5-1.3-.8-2.7-.8-4.1s.3-2.8.7-4.1l-7.3-5.7C2.7 17.1 2 20.5 2 24s.7 6.9 2 9.7l7.3-5.6z"
+    />
+    <path
+      fill="#EA4335"
+      d="M24 10.6c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.2 30 2 24 2 15.3 2 7.7 6.8 4 14.2l7.3 5.7c1.8-5.4 6.8-9.3 12.7-9.3z"
+    />
+  </svg>
+);
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CODE_LENGTH = 6;
 
@@ -209,6 +230,28 @@ export default function Login() {
     setInfo("");
   }
 
+  // Google sign-in is a full-page OAuth redirect: Supabase bounces the browser
+  // through accounts.google.com and back to this origin with the session in
+  // the URL fragment, which the client picks up (detectSessionInUrl).
+  async function signInWithGoogle() {
+    setFormError("");
+    setLoading(true);
+    try {
+      const { error } = await getSupabase().auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) {
+        setFormError(error.message);
+        setLoading(false);
+      }
+      // On success the browser navigates away; nothing else to do here.
+    } catch {
+      setFormError("Network error. Check your connection and try again.");
+      setLoading(false);
+    }
+  }
+
   if (needsCode) {
     return (
       <AuthLayout
@@ -311,6 +354,13 @@ export default function Login() {
         </div>
         <button className="auth-submit" type="submit" disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}
+        </button>
+        <div className="auth-divider" role="separator" aria-label="or">
+          <span>or</span>
+        </div>
+        <button className="auth-google" type="button" onClick={signInWithGoogle} disabled={loading}>
+          {GOOGLE_SVG}
+          Continue with Google
         </button>
       </form>
     </AuthLayout>

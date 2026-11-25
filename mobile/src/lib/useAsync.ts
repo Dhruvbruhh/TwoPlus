@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cacheGet, cachePut } from "./offline";
+import { savedAt } from "./format";
+
+/** Every AsyncStorage key the offline fallback writes: `twoplus.cache:<screen>`. */
+export const CACHE_PREFIX = "twoplus.cache:";
 
 /**
  * One loader shape for every screen: data, error, initial spinner, pull-to-
@@ -10,7 +14,9 @@ import { cacheGet, cachePut } from "./offline";
  *
  * Passing `cacheKey` turns on the gym-floor offline fallback: every success
  * is written to AsyncStorage, and a failed load serves the last good copy
- * with an honest "offline" note instead of an error screen.
+ * with an honest, dated "offline" note instead of an error screen. The key is
+ * stored under CACHE_PREFIX so sign-out and account deletion can wipe it;
+ * callers scope it to the member (`home:<memberId>`).
  */
 export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = [], cacheKey?: string) {
   const [data, setData] = useState<T | null>(null);
@@ -18,6 +24,7 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = [], cacheKey
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const gen = useRef(0);
+  const storeKey = cacheKey ? CACHE_PREFIX + cacheKey : null;
 
   const run = useCallback(
     async (mode: "initial" | "refresh") => {
@@ -28,15 +35,15 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = [], cacheKey
         if (mine !== gen.current) return;
         setData(next);
         setError(null);
-        if (cacheKey) void cachePut(cacheKey, next);
+        if (storeKey) void cachePut(storeKey, { at: Date.now(), value: next });
       } catch (e) {
         if (mine !== gen.current) return;
         const message = e instanceof Error ? e.message : "Something went wrong.";
-        if (cacheKey) {
-          const cached = await cacheGet<T>(cacheKey);
-          if (cached != null && mine === gen.current) {
-            setData(cached);
-            setError(`Offline — showing your last synced data. (${message})`);
+        if (storeKey) {
+          const cached = await cacheGet<{ at: number; value: T }>(storeKey);
+          if (cached?.value != null && mine === gen.current) {
+            setData(cached.value);
+            setError(`Offline — showing your copy ${savedAt(cached.at)}. Figures may have changed since. (${message})`);
             return;
           }
         }

@@ -5,50 +5,66 @@
  * import from here so the app stays visually coherent and a token change
  * moves every surface at once.
  *
- * The palette is deliberately narrow: near-black grounds, a warm bone text
- * ramp, and a single burgundy accent that carries action and progress. Glass
- * is used for the few layered surfaces (tab bar, sheet headers) and nowhere
- * else, because blur is expensive on mid-range phones.
+ * The palette is the CRM's dark glass (src/index.css): translucent white
+ * panels over the gym photograph, bright hairlines, white as the one accent.
+ * Metric colours keep their meaning: each fitness family owns one hue
+ * (protein blue, carbs peach, fat pink, activity mint).
  */
 
 export const color = {
-  // Grounds, darkest to lightest. Never pure black: #000 crushes on OLED
-  // and kills the sense of depth the glass surfaces rely on.
-  canvas: "#0B0B0D",
-  surface: "#101014",
-  surfaceRaised: "#16161C",
-  surfaceOverlay: "#1C1C24",
+  // `canvas` sits behind the photo. The surface steps are glass, so use
+  // `surfaceSolid` wherever content scrolls underneath (sheets, overlays).
+  canvas: "#0B1012",
+  surface: "rgba(255,255,255,0.075)",
+  surfaceRaised: "rgba(255,255,255,0.11)",
+  surfaceOverlay: "rgba(255,255,255,0.16)",
+  surfaceSolid: "#151C20",
+  scrim: "rgba(0,0,0,0.52)",
+  sheetScrim: "rgba(0,0,0,0.6)",
+  highlight: "inset 0 1px 0 rgba(255,255,255,0.16)",
+  // CRM --card-shadow + --inset-hi: the lift that makes a panel read as glass.
+  depth: "0 18px 44px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.16)",
+  // CRM --field: inputs and quiet controls sit one step lighter than cards.
+  field: "rgba(255,255,255,0.08)",
+  // CRM --hero-band: solid ink behind headline figures.
+  ink: "#101214",
 
-  // Warm bone ramp. Tinted slightly warm so the app reads premium rather
-  // than clinical.
-  text: "#F4EFE7",
-  textMuted: "#A8A29A",
-  textFaint: "#6F6A63",
+  text: "#F2F5F5",
+  textMuted: "#B9C3C7",
+  textFaint: "#ADB8BC",
 
-  // Burgundy, the single accent. `accent` for fills, `accentText` for text
-  // on dark grounds (lighter so it clears 4.5:1), `accentSoft` for tints.
-  accent: "#8E2B3F",
-  accentBright: "#C4485F",
-  accentText: "#E8899C",
-  accentSoft: "rgba(196,72,95,0.14)",
+  // White, as in the CRM. `onAccent` is the ink on a filled accent.
+  accent: "#FFFFFF",
+  accentBright: "#FFFFFF",
+  accentText: "#FFFFFF",
+  accentSoft: "rgba(255,255,255,0.14)",
+  onAccent: "#0B0F11",
 
-  // Semantic. Green means "good/hit target", amber "attention", red "failed".
-  success: "#4FA97C",
-  successSoft: "rgba(79,169,124,0.14)",
-  warning: "#D8A24A",
-  warningSoft: "rgba(216,162,74,0.14)",
-  danger: "#D2585F",
-  dangerSoft: "rgba(210,88,95,0.14)",
-  info: "#5B93C9",
-  infoSoft: "rgba(91,147,201,0.14)",
+  // Metric family, lifted so each clears contrast on dark glass.
+  mint: "#6FCF9B",
+  mintSoft: "rgba(111,207,155,0.16)",
+  peach: "#F2A76B",
+  peachSoft: "rgba(242,167,107,0.16)",
+  pink: "#F08DB2",
+  pinkSoft: "rgba(240,141,178,0.16)",
+  blue: "#7FB2F0",
+  blueSoft: "rgba(127,178,240,0.16)",
 
-  // Hairlines. `line` for resting edges, `lineStrong` for emphasis.
-  line: "rgba(244,239,231,0.09)",
-  lineStrong: "rgba(244,239,231,0.16)",
+  success: "#6FCF9B",
+  successSoft: "rgba(111,207,155,0.16)",
+  warning: "#E0B169",
+  warningSoft: "rgba(224,177,105,0.16)",
+  danger: "#F09284",
+  dangerSoft: "rgba(240,146,132,0.16)",
+  info: "#7FB2F0",
+  infoSoft: "rgba(127,178,240,0.16)",
 
-  // Glass. Kept opaque enough to hold contrast over photography.
-  glass: "rgba(22,22,28,0.82)",
-  glassBorder: "rgba(244,239,231,0.12)",
+  line: "rgba(255,255,255,0.1)",
+  lineStrong: "rgba(255,255,255,0.18)",
+
+  // Tab bar and login card tint. No live blur on Android, so it stays dark enough to read text scrolling under it.
+  glass: "rgba(18,20,23,0.92)",
+  glassBorder: "rgba(255,255,255,0.18)",
 } as const;
 
 export const space = {
@@ -66,7 +82,7 @@ export const space = {
 export const radius = {
   sm: 8,
   md: 12,
-  lg: 16,
+  lg: 24,
   xl: 20,
   xxl: 28,
   pill: 999,
@@ -87,7 +103,7 @@ export const type = {
   bodyStrong: { fontSize: 15, lineHeight: 21, fontWeight: "600" as const },
   small: { fontSize: 13, lineHeight: 18, fontWeight: "400" as const },
   smallStrong: { fontSize: 13, lineHeight: 18, fontWeight: "600" as const },
-  caption: { fontSize: 11, lineHeight: 15, fontWeight: "500" as const, letterSpacing: 0.3 },
+  caption: { fontSize: 12, lineHeight: 16, fontWeight: "500" as const, letterSpacing: 0 },
   mono: { fontSize: 13, lineHeight: 18, fontWeight: "600" as const, letterSpacing: 0 },
 } as const;
 
@@ -105,3 +121,47 @@ export const HIT = 44;
  * gutters line up across every tab.
  */
 export const gutter = space.xl;
+
+/**
+ * Liquid glass, drawn with styles. Android has no live backdrop blur here, so
+ * each pane is a translucent tint over the already-blurred photo, plus a
+ * diagonal sheen, a bright top rim (the light catching the edge) and a soft
+ * drop. Every glass surface uses one of these four weights.
+ */
+const rim = "inset 0 1px 0.5px rgba(255,255,255,0.42), inset 0 -1px 0.5px rgba(255,255,255,0.08)";
+const sheen =
+  "linear-gradient(155deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.04) 38%, rgba(255,255,255,0) 62%, rgba(255,255,255,0.07) 100%)";
+
+export const glass = {
+  // Cards, bands, empty states.
+  pane: {
+    backgroundColor: color.surface,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    backgroundImage: sheen,
+    boxShadow: `0 10px 30px rgba(0,0,0,0.28), ${rim}`,
+  },
+  // Buttons, chips, segments: a brighter, smaller piece of glass.
+  control: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.03) 100%)",
+    boxShadow: `0 4px 14px rgba(0,0,0,0.22), ${rim}`,
+  },
+  // The floating tab bar and the login card: darker tint, deeper shadow.
+  bar: {
+    backgroundColor: color.glass,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    backgroundImage: sheen,
+    boxShadow: `0 14px 40px rgba(0,0,0,0.45), ${rim}`,
+  },
+  // Text fields: recessed into the glass rather than raised.
+  well: {
+    backgroundColor: "rgba(0,0,0,0.22)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    boxShadow: "inset 0 1px 3px rgba(0,0,0,0.35)",
+  },
+} as const;

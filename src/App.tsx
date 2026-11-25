@@ -222,6 +222,17 @@ export default function App() {
   const [modal, setModal] = useState("")
   const [modalError, setModalError] = useState("")
   const [modalBusy, setModalBusy] = useState(false)
+  // One id per opened form: pressing Save again after a timeout or error
+  // reuses it, so the server can return the first result instead of writing
+  // a second payment, invoice or renewal. A new form gets a new id.
+  const requestId = useRef("")
+  // A member created by this form, kept so a retry after a later step failed
+  // (plan assignment, enquiry update) does not register the person twice.
+  const createdInForm = useRef<string | null>(null)
+  useEffect(() => {
+    requestId.current = crypto.randomUUID()
+    createdInForm.current = null
+  }, [modal])
   const [page, setPage] = useState(1)
   const [moduleTick, setModuleTick] = useState(0)
   const [openCheckins, setOpenCheckins] = useState<{ id: string; name: string }[]>([])
@@ -367,8 +378,14 @@ export default function App() {
         api.loadDashboardStats(org),
         api.listStaff(orgId),
         api.listEnquiries(orgId),
-        api.listOrgMembers(orgId).catch(() => []),
-        api.listNotifications(orgId).catch(() => []),
+        api.listOrgMembers(orgId).catch(() => {
+          notify("Staff names could not be loaded")
+          return []
+        }),
+        api.listNotifications(orgId).catch(() => {
+          notify("Notifications could not be loaded")
+          return []
+        }),
         api.loadMonthlyReports(orgId, 6),
       ])
 
@@ -476,30 +493,39 @@ export default function App() {
     }
     const orgId = org.organization.id
     let cancelled = false
+    // A failed subresource renders as an empty list, which reads as "no
+    // history"; surface it once instead of silently blanking the drawer.
+    let failed = false
+    const failOnce = () => {
+      if (!cancelled && !failed) {
+        failed = true
+        notify("Part of this member's history could not be loaded")
+      }
+    }
     api
       .listMemberAttendance(orgId, memberId, 10)
       .then((visits) => { if (!cancelled) setProfileVisits(visits) })
-      .catch(() => { if (!cancelled) setProfileVisits([]) })
+      .catch(() => { if (!cancelled) { setProfileVisits([]); failOnce() } })
     api
       .listPayments(orgId, { memberId, limit: 20 })
       .then((rows) => { if (!cancelled) setProfilePayments(rows) })
-      .catch(() => { if (!cancelled) setProfilePayments([]) })
+      .catch(() => { if (!cancelled) { setProfilePayments([]); failOnce() } })
     api
       .listMembershipsForMember(orgId, memberId)
       .then((rows) => { if (!cancelled) setProfileMemberships(rows) })
-      .catch(() => { if (!cancelled) setProfileMemberships([]) })
+      .catch(() => { if (!cancelled) { setProfileMemberships([]); failOnce() } })
     api
       .listRenewals(orgId, memberId, 10)
       .then((rows) => { if (!cancelled) setProfileRenewals(rows) })
-      .catch(() => { if (!cancelled) setProfileRenewals([]) })
+      .catch(() => { if (!cancelled) { setProfileRenewals([]); failOnce() } })
     api
       .listInternalNotes(orgId, memberId, 20)
       .then((rows) => { if (!cancelled) setProfileNotes(rows) })
-      .catch(() => { if (!cancelled) setProfileNotes([]) })
+      .catch(() => { if (!cancelled) { setProfileNotes([]); failOnce() } })
     api
       .listMeasurements(orgId, memberId, 10)
       .then((rows) => { if (!cancelled) setProfileMeasurements(rows) })
-      .catch(() => { if (!cancelled) setProfileMeasurements([]) })
+      .catch(() => { if (!cancelled) { setProfileMeasurements([]); failOnce() } })
     return () => { cancelled = true }
   }, [org, profile?.memberId, moduleTick])
 
@@ -1040,6 +1066,10 @@ export default function App() {
     "Access & roles": ["owner"],
   }
   const canWrite = !!org && (writeRoles[active]?.includes(org.role) ?? false)
+// Voiding an invoice is a money action reserved to owner/manager/finance by
+// RLS (0006). Receptionist may raise invoices but the void button must not
+// appear for them: RLS would silently reject the write.
+const canVoidInvoice = !!org && ["owner", "manager", "finance"].includes(org.role)
   return (
     <div className={`app ${active === "Overview" ? "summary-view" : ""}`}>
       <nav className="app-side-nav" aria-label="Main navigation">
@@ -1744,9 +1774,9 @@ export default function App() {
                     {active === "Invoices" && (
                       <Button
                         secondary
-                        disabled={!invoices.length || !canWrite}
+                        disabled={!invoices.length || !canVoidInvoice}
                         title={
-                          !canWrite
+                          !canVoidInvoice
                             ? "Your role cannot void invoices"
                             : invoices.length
                               ? undefined
@@ -2635,15 +2665,18 @@ export default function App() {
                       const [first, ...rest] = rawName.split(/\s+/)
                       const planName = String(data.get("plan") || "Unassigned")
                       const chosen = plans.find((p) => p.name === planName)
-                      const created = await api.createMember(orgId, {
-                        first_name: first || rawName,
-                        last_name: rest.join(" "),
-                        email: String(data.get("email") || "") || undefined,
-                        phone: String(data.get("phone") || ""),
-                        date_of_birth: String(data.get("dob") || "") || undefined,
-                        joined_on: String(data.get("joined") || "") || undefined,
-                        photo_url: String(data.get("photo") || "").trim() || undefined,
-                      })
+                      const created = createdInForm.current
+                        ? { id: createdInForm.current }
+                        : await api.createMember(orgId, {
+                            first_name: first || rawName,
+                            last_name: rest.join(" "),
+                            email: String(data.get("email") || "") || undefined,
+                            phone: String(data.get("phone") || ""),
+                            date_of_birth: String(data.get("dob") || "") || undefined,
+                            joined_on: String(data.get("joined") || "") || undefined,
+                            photo_url: String(data.get("photo") || "").trim() || undefined,
+                          })
+                      createdInForm.current = created.id
                       if (chosen) {
                         const start = String(data.get("joined") || "") ||
                           new Date().toISOString().slice(0, 10)
@@ -2669,6 +2702,7 @@ export default function App() {
                         {
                           amount_minor: Math.round(rupees * 100),
                           note: String(data.get("note") || "") || undefined,
+                          request_id: requestId.current,
                         },
                       )
                       setModal("")
@@ -2717,6 +2751,7 @@ export default function App() {
                         method: String(data.get("method") || "cash") as PaymentMethod,
                         status: String(data.get("status") || "paid") as "paid" | "pending",
                         description: String(data.get("description") || "") || undefined,
+                        request_id: requestId.current,
                       })
                       setModal("")
                       notify("Payment recorded")
@@ -2733,6 +2768,7 @@ export default function App() {
                         issued_on: String(data.get("issued") || "") || undefined,
                         due_on: String(data.get("due") || "") || undefined,
                         notes: String(data.get("notes") || "") || undefined,
+                        request_id: requestId.current,
                       })
                       setModal("")
                       notify("Invoice raised")
@@ -2910,14 +2946,37 @@ export default function App() {
                       const enquiry = convertible.find((e) => e.id === enquiryId)
                       if (!enquiry) throw new Error("Select an enquiry to convert")
                       const [first, ...rest] = enquiry.name.trim().split(/\s+/)
-                      const created = await api.createMember(orgId, {
-                        first_name: first || enquiry.name,
-                        last_name: rest.join(" "),
-                        phone: enquiry.phone,
-                      })
                       const chosen = plans.find(
                         (p) => p.name === String(data.get("plan") || "Unassigned"),
                       )
+                      const joined =
+                        String(data.get("joined") || "") ||
+                        new Date().toISOString().slice(0, 10)
+                      // One transaction on databases with 0018; a retry returns
+                      // the same member.
+                      const converted = await api.convertEnquiry({
+                        enquiry_id: enquiryId,
+                        first_name: first || enquiry.name,
+                        last_name: rest.join(" "),
+                        plan_id: chosen?.id ?? null,
+                        start_date: joined,
+                        end_date: String(data.get("expires") || "") || null,
+                      })
+                      if (converted) {
+                        setModal("")
+                        notify("Enquiry converted to a member")
+                        setModuleTick((t) => t + 1)
+                        reload()
+                        return
+                      }
+                      const created = createdInForm.current
+                        ? { id: createdInForm.current }
+                        : await api.createMember(orgId, {
+                            first_name: first || enquiry.name,
+                            last_name: rest.join(" "),
+                            phone: enquiry.phone,
+                          })
+                      createdInForm.current = created.id
                       if (chosen) {
                         const start =
                           String(data.get("joined") || "") ||

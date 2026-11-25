@@ -613,7 +613,7 @@ export async function getMyProgressPhotos(
 ): Promise<ProgressPhoto[]> {
   const { data, error } = await getSupabase()
     .from("member_progress_photos")
-    .select("id, taken_on, storage_path, note")
+    .select("id, taken_on, storage_path, note:notes")
     .eq("organization_id", orgId)
     .eq("member_id", memberId)
     .order("taken_on", { ascending: false })
@@ -658,7 +658,7 @@ export async function uploadProgressPhoto(input: {
     member_id: input.memberId,
     taken_on: input.takenOn,
     storage_path: path,
-    note: input.note?.trim() || null,
+    notes: input.note?.trim() || null,
   });
 
   if (error) {

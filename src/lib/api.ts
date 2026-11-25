@@ -41,6 +41,18 @@ function throwIf(error: { message: string } | null, fallback: string) {
   if (error) throw err(error.message || fallback);
 }
 
+// The database does not have this function (or this signature) yet: the
+// migration that adds it has not been applied. Callers fall back to the
+// previous path so the live workspace keeps working until it is.
+function missingFunction(error: { code?: string; message?: string } | null) {
+  return !!error && (error.code === "PGRST202" || error.code === "42883");
+}
+
+// create_member writes members.photo_url, which only exists after 0005.
+function missingColumn(error: { code?: string } | null) {
+  return !!error && error.code === "42703";
+}
+
 // This project's PostgREST rejects aggregate functions ("PGRST123: Use of
 // aggregate functions is not allowed"), so a total is summed in the browser
 // from the rows themselves. A single `.limit(10_000)` would then silently
@@ -139,6 +151,28 @@ export async function createMember(
   },
 ): Promise<Member> {
   const supabase = getSupabase();
+  // Preferred path: create_member (0006) refuses a duplicate phone/email and
+  // numbers the code from a locked counter, so a double submit cannot make a
+  // second member. A custom code still goes through the direct insert.
+  if (!input.member_code?.trim()) {
+    const rpc = await supabase.rpc("create_member", {
+      p_organization_id: orgId,
+      p_first_name: input.first_name.trim(),
+      p_last_name: input.last_name?.trim() || "",
+      p_phone: input.phone.trim(),
+      p_email: input.email?.trim() || null,
+      p_date_of_birth: input.date_of_birth || null,
+      p_gender: input.gender ?? null,
+      p_emergency_name: input.emergency_contact_name || null,
+      p_emergency_phone: input.emergency_contact_phone || null,
+      p_joined_on: input.joined_on || null,
+      p_photo_url: input.photo_url?.trim() || null,
+    });
+    if (!rpc.error) return rpc.data as Member;
+    if (!missingFunction(rpc.error) && !missingColumn(rpc.error)) {
+      throwIf(rpc.error, "Could not create the member");
+    }
+  }
   const code =
     input.member_code?.trim() ||
     `GYM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
@@ -317,56 +351,33 @@ export async function assignMembership(
   return data as MemberMembership;
 }
 
-// A renewal is two writes: move the end date, then log what changed. The log
-// row is what lets an owner answer "when did he renew, and for how much" later;
-// member_memberships only holds the current date.
+// A renewal moves the end date and logs what changed in one server
+// transaction (renew_membership, 0006). The log row is what lets an owner
+// answer "when did he renew, and for how much" later. With 0018 the request
+// id makes a retried submit return the first result instead of renewing twice.
 export async function updateMembershipExpiry(
   membershipId: string,
   endDate: string,
-  opts: { amount_minor?: number; note?: string } = {},
+  opts: { amount_minor?: number; note?: string; request_id?: string } = {},
 ): Promise<void> {
   const supabase = getSupabase();
   const { data: current, error: readError } = await supabase
     .from("member_memberships")
-    .select("organization_id, member_id, end_date")
+    .select("organization_id, end_date")
     .eq("id", membershipId)
     .single();
   throwIf(readError, "Could not load the membership");
   if (!current) throw err("That membership no longer exists");
-  if (endDate <= current.end_date)
-    throw err(
-      `The new expiry must be after the current end date (${current.end_date})`,
-    );
-  const { error } = await supabase
-    .from("member_memberships")
-    .update({ end_date: endDate, status: "active" })
-    .eq("id", membershipId);
+  const args = {
+    p_organization_id: current.organization_id,
+    p_membership_id: membershipId,
+    p_new_end_date: endDate,
+    p_amount_minor: opts.amount_minor ?? 0,
+    p_note: opts.note?.trim() || null,
+  };
+  let { error } = await supabase.rpc("renew_membership", { ...args, p_request_id: opts.request_id ?? null });
+  if (missingFunction(error)) ({ error } = await supabase.rpc("renew_membership", args));
   throwIf(error, "Could not renew the membership");
-  const { data: userData } = await supabase.auth.getUser();
-  const days = Math.round(
-    (Date.parse(`${endDate}T00:00:00`) -
-      Date.parse(`${current.end_date}T00:00:00`)) /
-      86_400_000,
-  );
-  const { error: logError } = await supabase
-    .from("membership_renewals")
-    .insert({
-      organization_id: current.organization_id,
-      membership_id: membershipId,
-      member_id: current.member_id,
-      previous_end_date: current.end_date,
-      new_end_date: endDate,
-      extended_days: days,
-      amount_minor: opts.amount_minor ?? 0,
-      note: opts.note?.trim() || null,
-      renewed_by: userData.user?.id ?? null,
-    });
-  // The date already moved, so say exactly what happened rather than implying
-  // the renewal failed.
-  throwIf(
-    logError,
-    "The expiry date was updated, but the renewal could not be logged",
-  );
 }
 
 export async function listRenewals(
@@ -468,9 +479,28 @@ export async function recordPayment(
     status: Payment["status"];
     paid_on?: string;
     description?: string;
+    request_id?: string;
   },
 ): Promise<Payment> {
   const supabase = getSupabase();
+  // 0018: replaying the same request id returns the first payment, so a
+  // timeout followed by a second tap cannot credit the member twice.
+  const rpc = await supabase.rpc("record_payment", {
+    p_organization_id: orgId,
+    p_member_id: input.member_id,
+    p_amount_minor: input.amount_minor,
+    p_method: input.method,
+    p_status: input.status,
+    p_membership_id: input.membership_id ?? null,
+    p_invoice_id: input.invoice_id ?? null,
+    p_paid_on: input.paid_on || null,
+    p_description: input.description || null,
+    p_request_id: input.request_id ?? null,
+  });
+  if (!rpc.error) return rpc.data as Payment;
+  if (!missingFunction(rpc.error)) throwIf(rpc.error, "Could not record the payment");
+  // shortcut: pre-0018 databases take the direct insert, which has no replay
+  // guard; apply 0018 before relying on retry safety.
   const { data: userData } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("payments")
@@ -558,11 +588,15 @@ export async function checkInMember(
 }
 
 export async function checkOutMember(attendanceId: string): Promise<void> {
-  const { error } = await getSupabase()
+  // RLS can silently filter the row out (a role without the update policy
+  // writes zero rows without erroring), so count what actually changed.
+  const { data, error } = await getSupabase()
     .from("attendance")
     .update({ check_out: new Date().toISOString() })
-    .eq("id", attendanceId);
+    .eq("id", attendanceId)
+    .select("id");
   throwIf(error, "Could not record the check-out");
+  if (!data?.length) throw err("Could not record the check-out: no open check-in found");
 }
 
 // Recent visits for the member drawer. Reads only that member's rows.
@@ -641,6 +675,30 @@ export async function updateEnquiry(
     .update(patch)
     .eq("id", enquiryId);
   throwIf(error, "Could not update the enquiry");
+}
+
+// Creates (or re-links) the member, assigns the optional plan and marks the
+// enquiry converted in one transaction (0018). Returns null when the database
+// does not have convert_enquiry yet, so the caller can use the older steps.
+export async function convertEnquiry(input: {
+  enquiry_id: string;
+  first_name?: string;
+  last_name?: string;
+  plan_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}): Promise<Member | null> {
+  const { data, error } = await getSupabase().rpc("convert_enquiry", {
+    p_enquiry_id: input.enquiry_id,
+    p_first_name: input.first_name ?? null,
+    p_last_name: input.last_name ?? null,
+    p_plan_id: input.plan_id ?? null,
+    p_start_date: input.start_date ?? null,
+    p_end_date: input.end_date ?? null,
+  });
+  if (missingFunction(error)) return null;
+  throwIf(error, "Could not convert the enquiry");
+  return data as Member;
 }
 
 // ---------------------------------------------------------------------------
@@ -1532,7 +1590,7 @@ export async function recordMeasurement(
 ): Promise<void> {
   const supabase = getSupabase();
   const { data: userData } = await supabase.auth.getUser();
-  const { error } = await supabase.from("fitness_measurements").upsert(
+  const { data, error } = await supabase.from("fitness_measurements").upsert(
     {
       organization_id: orgId,
       member_id: input.member_id,
@@ -1549,8 +1607,12 @@ export async function recordMeasurement(
       recorded_by: userData.user?.id ?? null,
     },
     { onConflict: "member_id,measured_on" },
-  );
+  )
+  .select("id");
+  // An upsert blocked by RLS (role without the matching update policy) returns
+  // zero rows without an error, which would otherwise look like success.
   throwIf(error, "Could not save the measurement");
+  if (!data?.length) throw err("Could not save the measurement");
 }
 
 // ---------------------------------------------------------------------------
@@ -1585,9 +1647,23 @@ export async function createInvoice(
     issued_on?: string;
     due_on?: string;
     notes?: string;
+    request_id?: string;
   },
 ): Promise<Invoice> {
   const supabase = getSupabase();
+  // 0018: numbered from a locked per-gym counter, replay-safe by request id.
+  const rpc = await supabase.rpc("create_invoice", {
+    p_organization_id: orgId,
+    p_member_id: input.member_id,
+    p_total_minor: input.total_minor,
+    p_membership_id: input.membership_id ?? null,
+    p_issued_on: input.issued_on || null,
+    p_due_on: input.due_on || null,
+    p_notes: input.notes?.trim() || null,
+    p_request_id: input.request_id ?? null,
+  });
+  if (!rpc.error) return rpc.data as Invoice;
+  if (!missingFunction(rpc.error)) throwIf(rpc.error, "Could not create the invoice");
   const { data: userData } = await supabase.auth.getUser();
   const year = new Date().getFullYear();
   const prefix = `INV-${year}-`;

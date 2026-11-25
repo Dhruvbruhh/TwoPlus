@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <!-- TwoPlus Play Store feature graphic, 1024x500 (Play's required size).
+       All geometry and colours are measured from the member app's real icon,
+       mobile/assets/icon.png (2026-11-16): disc radius ~490/1024 with a
+       radial #6D2232 -> #2E1118 fill; the H mark's bars sit at x 313-465 and
+       559-711, y 277-747, crossbar y 456-568, with a vertical #F4EFE7 ->
+       #E1ACB0 fill. Typeface: Inter, the app's font.
+       Export the PNG with: node scripts/make-feature-graphic.mjs -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="46%" r="75%">
+      <stop offset="0%" stop-color="#6E2231"/>
+      <stop offset="55%" stop-color="#4A1826"/>
+      <stop offset="100%" stop-color="#281016"/>
+    </radialGradient>
+    <radialGradient id="disc" cx="42%" cy="40%" r="68%">
+      <stop offset="0%" stop-color="#7C2A3B"/>
+      <stop offset="55%" stop-color="#571D2B"/>
+      <stop offset="100%" stop-color="#33131C"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#EACECC" stop-opacity="0.15"/>
+      <stop offset="65%" stop-color="#EACECC" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#EACECC" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bar" x1="0" y1="277" x2="0" y2="747" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F4EFE7"/>
+      <stop offset="100%" stop-color="#E1ACB0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="500" fill="url(#bg)"/>
+
+  <!-- brand mark: the member app icon's disc + H, redrawn as vectors -->
+  <circle cx="826" cy="250" r="196" fill="url(#glow)"/>
+  <circle cx="826" cy="250" r="194" fill="url(#disc)"/>
+  <g transform="translate(826 250) scale(0.4) translate(-512 -512)">
+    <rect x="313" y="277" width="152" height="470" fill="url(#bar)"/>
+    <rect x="559" y="277" width="152" height="470" fill="url(#bar)"/>
+    <rect x="313" y="456" width="398" height="112" fill="url(#bar)"/>
+  </g>
+
+  <!-- wordmark; the tagline is the listing short description, wrapped -->
+  <g font-family="InterBold, Inter, system-ui, sans-serif">
+    <text x="72" y="238" font-size="96" font-weight="700" fill="#F2E7E1" letter-spacing="-2">TwoPlus</text>
+    <text x="74" y="298" font-size="27" font-weight="500" fill="#D9B9BD">Workouts, runs, water, weight and</text>
+    <text x="74" y="338" font-size="27" font-weight="500" fill="#D9B9BD">coach insights in one gym app.</text>
+  </g>
+</svg>

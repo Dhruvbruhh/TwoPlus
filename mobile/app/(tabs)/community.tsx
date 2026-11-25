@@ -1,10 +1,10 @@
 import React, { useMemo } from "react";
-import { Linking, View } from "react-native";
+import { Alert, Linking, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
 import { useAsync } from "../../src/lib/useAsync";
-import { getAttendance, getNotifications, getOrg, getUpcomingClasses } from "../../src/lib/data";
+import { getAttendance, getNotifications, getOrg, getUpcomingClasses, markNotificationRead } from "../../src/lib/data";
 import { clockTime, humanise, shortDate } from "../../src/lib/format";
 import {
   Button,
@@ -45,7 +45,7 @@ export default function CommunityScreen() {
       return { notifications, org, classes, attendance };
     },
     [member?.id, member?.organization_id, session?.user.id],
-    "community",
+    member ? `community:${member.id}` : undefined,
   );
 
   const { unread, recent } = useMemo(() => {
@@ -102,6 +102,22 @@ export default function CommunityScreen() {
                   <T variant="small" tone="muted" style={{ marginTop: space.sm }}>
                     {n.body}
                   </T>
+                ) : null}
+                {!n.read_at ? (
+                  <Button
+                    label="Mark as read"
+                    variant="secondary"
+                    compact
+                    onPress={async () => {
+                      try {
+                        await markNotificationRead(n.id);
+                        await state.refresh();
+                      } catch (e) {
+                        Alert.alert("Could not update", e instanceof Error ? e.message : "Try again in a moment.");
+                      }
+                    }}
+                    style={{ marginTop: space.md, alignSelf: "flex-start" }}
+                  />
                 ) : null}
                 {n.type ? (
                   <View style={{ marginTop: space.md }}>

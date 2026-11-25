@@ -1,5 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
+import { getMeals } from "./nutrition";
+import { CACHE_PREFIX } from "./useAsync";
+import { OUTBOX_PREFIX } from "./outbox";
+import { dayKey } from "./format";
+
+export { formatMoney } from "./format";
 
 /**
  * Member-facing reads.
@@ -71,6 +77,7 @@ export type Exercise = {
 
 export type WorkoutSession = {
   id: string;
+  created_at?: string;
   performed_on: string;
   duration_minutes: number | null;
   note: string | null;
@@ -151,14 +158,14 @@ export async function getMemberships(memberId: string) {
   );
 }
 
-export async function getPayments(memberId: string) {
+export async function getPayments(memberId: string, limit = 24) {
   return many<Payment>(
     supabase
       .from("payments")
       .select("id, amount_minor, currency, method, status, paid_on, description")
       .eq("member_id", memberId)
       .order("paid_on", { ascending: false })
-      .limit(24),
+      .limit(limit),
   );
 }
 
@@ -173,7 +180,7 @@ export async function getAttendance(memberId: string, limit = 60) {
   );
 }
 
-export async function getMeasurements(memberId: string) {
+export async function getMeasurements(memberId: string, limit = 40) {
   return many<Measurement>(
     supabase
       .from("fitness_measurements")
@@ -182,7 +189,7 @@ export async function getMeasurements(memberId: string) {
       )
       .eq("member_id", memberId)
       .order("measured_on", { ascending: false })
-      .limit(40),
+      .limit(limit),
   );
 }
 
@@ -193,15 +200,16 @@ export async function getMeasurements(memberId: string) {
  * the most recent `effective_from` is the one their coach means today.
  */
 export async function getActiveWorkoutPlan(memberId: string) {
-  const assignments = await many<{ plan_id: string; effective_from: string | null }>(
+  const assignments = await many<{ id: string; plan_id: string; effective_from: string | null }>(
     supabase
       .from("member_workout_assignments")
-      .select("plan_id, effective_from")
+      .select("id, plan_id, effective_from")
       .eq("member_id", memberId)
       .eq("status", "active")
       .order("effective_from", { ascending: false })
       .limit(1),
   );
+  const assignmentId = assignments[0]?.id;
   const planId = assignments[0]?.plan_id;
   if (!planId) return null;
 
@@ -218,7 +226,7 @@ export async function getActiveWorkoutPlan(memberId: string) {
       .order("position", { ascending: true }),
   );
 
-  return { plan, exercises };
+  return { assignmentId, plan, exercises };
 }
 
 export async function getActiveDietPlan(memberId: string) {
@@ -260,7 +268,9 @@ export async function getUpcomingClasses(organizationId: string) {
       .select("id, name, starts_at, duration_minutes, capacity, trainer_id")
       .eq("organization_id", organizationId)
       .gte("starts_at", new Date().toISOString())
-      .in("status", ["scheduled", "active"])
+      // scheduled only: book_class rejects anything else ("not open for
+      // booking"), so showing an active class just hands the member an error.
+      .eq("status", "scheduled")
       .order("starts_at", { ascending: true })
       .limit(20),
   );
@@ -313,32 +323,40 @@ export async function startSession(input: {
   planId: string | null;
   assignmentId?: string | null;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const existing = await many<WorkoutSession>(
-    supabase
-      .from("workout_sessions")
-      .select("id, performed_on, duration_minutes, note, completed_at, plan_id")
-      .eq("member_id", input.memberId)
-      .eq("performed_on", today)
-      .limit(1),
-  );
+  const today = dayKey();
+  const cols = "id, created_at, performed_on, duration_minutes, note, completed_at, plan_id";
+  const find = () =>
+    many<WorkoutSession>(
+      supabase
+        .from("workout_sessions")
+        .select(cols)
+        .eq("member_id", input.memberId)
+        .eq("performed_on", today)
+        .is("assignment_id", input.assignmentId ?? null)
+        .limit(1),
+    );
+  const existing = await find();
   if (existing[0]) return existing[0];
 
-  const row = await one<WorkoutSession>(
-    supabase
-      .from("workout_sessions")
-      .insert({
-        member_id: input.memberId,
-        organization_id: input.organizationId,
-        plan_id: input.planId,
-        assignment_id: input.assignmentId ?? null,
-        performed_on: today,
-      })
-      .select("id, performed_on, duration_minutes, note, completed_at, plan_id")
-      .single(),
-  );
-  if (!row) throw new Error("Could not start the session");
-  return row;
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .insert({
+      member_id: input.memberId,
+      organization_id: input.organizationId,
+      plan_id: input.planId,
+      assignment_id: input.assignmentId ?? null,
+      performed_on: today,
+    })
+    .select(cols)
+    .single();
+  if (error?.code === "23505") {
+    // A second tap (or another device) created today's row first: use it.
+    const again = await find();
+    if (again[0]) return again[0];
+  }
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Could not start the session");
+  return data as WorkoutSession;
 }
 
 export async function logSet(input: {
@@ -392,6 +410,104 @@ export async function finishSession(sessionId: string, durationMinutes: number, 
   if (error) throw new Error(error.message);
 }
 
+export async function markNotificationRead(id: string) {
+  const { data, error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error("Could not mark that message as read.");
+}
+
+export type Invoice = {
+  id: string;
+  invoice_number: string;
+  issued_on: string;
+  due_on: string | null;
+  total_minor: number;
+  status: string;
+  payments: { amount_minor: number; status: string }[];
+};
+
+/**
+ * The member's own invoices with their allocations. Readable once migration
+ * 0018 ("invoices read self") is applied; before that RLS returns no rows, so
+ * the UI must not present an empty list as "nothing owed" (see profile.tsx).
+ */
+export async function getInvoices(memberId: string, limit = 50) {
+  return many<Invoice>(
+    supabase
+      .from("invoices")
+      .select("id, invoice_number, issued_on, due_on, total_minor, status, payments(amount_minor, status)")
+      .eq("member_id", memberId)
+      .order("issued_on", { ascending: false })
+      .limit(limit),
+  );
+}
+
+/**
+ * Private progress photos, same bucket and path shape as the web app
+ * (`<org>/<member>/<uuid>.jpg`). Signed URLs live ten minutes and are never
+ * cached or exported.
+ */
+const PROGRESS_BUCKET = "member-progress";
+
+export type ProgressPhoto = { id: string; taken_on: string; storage_path: string; note: string | null; url: string | null };
+
+export async function getProgressPhotos(organizationId: string, memberId: string, limit = 24) {
+  const rows = await many<Omit<ProgressPhoto, "url">>(
+    supabase
+      .from("member_progress_photos")
+      .select("id, taken_on, storage_path, note:notes")
+      .eq("organization_id", organizationId)
+      .eq("member_id", memberId)
+      .order("taken_on", { ascending: false })
+      .limit(limit),
+  );
+  if (!rows.length) return [];
+  const { data: signed } = await supabase.storage
+    .from(PROGRESS_BUCKET)
+    .createSignedUrls(rows.map((r) => r.storage_path), 60 * 10);
+  const byPath = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
+  return rows.map((r) => ({ ...r, url: byPath.get(r.storage_path) ?? null }));
+}
+
+export async function uploadProgressPhoto(input: {
+  organizationId: string;
+  memberId: string;
+  uri: string;
+  mimeType?: string | null;
+}) {
+  const ext = input.mimeType === "image/png" ? "png" : "jpg";
+  const id = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const path = `${input.organizationId}/${input.memberId}/${id}.${ext}`;
+  const body = await (await fetch(input.uri)).arrayBuffer();
+  const up = await supabase.storage
+    .from(PROGRESS_BUCKET)
+    .upload(path, body, { contentType: input.mimeType ?? "image/jpeg", upsert: false });
+  if (up.error) throw new Error(up.error.message || "Could not upload that photo.");
+  const { error } = await supabase.from("member_progress_photos").insert({
+    organization_id: input.organizationId,
+    member_id: input.memberId,
+    taken_on: dayKey(),
+    storage_path: path,
+  });
+  if (error) {
+    // No orphaned object when the row is refused.
+    await supabase.storage.from(PROGRESS_BUCKET).remove([path]);
+    throw new Error(error.message || "Could not save that photo.");
+  }
+}
+
+export async function deleteProgressPhoto(photo: Pick<ProgressPhoto, "id" | "storage_path">) {
+  const { data, error } = await supabase.from("member_progress_photos").delete().eq("id", photo.id).select("id");
+  if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error("That photo could not be deleted.");
+  const rm = await supabase.storage.from(PROGRESS_BUCKET).remove([photo.storage_path]);
+  if (rm.error) throw new Error(`The photo left your list, but its file was not removed: ${rm.error.message}`);
+}
+
 export async function getNotifications(userId: string) {
   return many<{ id: string; title: string; body: string | null; type: string | null; read_at: string | null; created_at: string }>(
     supabase
@@ -423,7 +539,7 @@ export async function getWaterLog(): Promise<Record<string, number>> {
   }
 }
 
-export async function addWater(ml: number, day = new Date().toISOString().slice(0, 10)) {
+export async function addWater(ml: number, day = dayKey()) {
   const log = await getWaterLog();
   log[day] = Math.max(0, (log[day] ?? 0) + ml);
   await AsyncStorage.setItem("twoplus.water", JSON.stringify(log));
@@ -431,7 +547,7 @@ export async function addWater(ml: number, day = new Date().toISOString().slice(
 }
 
 export async function getWaterToday() {
-  return (await getWaterLog())[new Date().toISOString().slice(0, 10)] ?? 0;
+  return (await getWaterLog())[dayKey()] ?? 0;
 }
 
 /**
@@ -451,7 +567,7 @@ export async function addMeasurement(input: {
       .insert({
         member_id: input.memberId,
         organization_id: input.organizationId,
-        measured_on: new Date().toISOString().slice(0, 10),
+        measured_on: dayKey(),
         weight_kg: input.weightKg,
         height_cm: input.heightCm ?? null,
         notes: input.notes?.slice(0, 500) ?? null,
@@ -479,7 +595,7 @@ export async function saveRun(input: {
   durationMinutes: number;
   note: string;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = dayKey();
   const existing = await many<WorkoutSession & { note: string | null }>(
     supabase
       .from("workout_sessions")
@@ -491,6 +607,9 @@ export async function saveRun(input: {
   );
   if (existing[0]) {
     const prev = existing[0];
+    // Retry after a lost response: this exact run (its note carries the start
+    // time) is already in the row, so adding it again would double it.
+    if (prev.note?.includes(input.note)) return prev.id;
     const duration = Math.min(
       1440,
       (prev.duration_minutes ?? 0) + Math.max(0, Math.round(input.durationMinutes)),
@@ -530,8 +649,118 @@ export function bmiOf(weightKg: number | null, heightCm: number | null) {
   return weightKg / (m * m);
 }
 
-export function formatMoney(minor: number, currency = "INR") {
-  const major = minor / 100;
-  const symbol = currency === "INR" ? "₹" : currency === "USD" ? "$" : currency === "EUR" ? "€" : "";
-  return `${symbol}${major.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+/**
+ * Your data: export and account deletion, the mobile twin of the web app's
+ * Phase 18 section (src/lib/member-api.ts).
+ *
+ * Export gathers every structured record the member can read under RLS, with
+ * the same 100,000-row ceiling the web export uses: a member asking for their
+ * data gets all of it, not the last page the screens show. Progress photos are
+ * not included (they live in storage buckets, and the mobile app has no photo
+ * list yet); the web export covers them.
+ */
+
+/** Screen getters cap themselves for UI speed; an export must not. */
+const EXPORT_LIMIT = 100_000;
+
+export async function exportMyData(): Promise<string> {
+  const { data: user } = await supabase.auth.getUser();
+  if (!user.user) throw new Error("Not signed in");
+  const memberRow = await supabase.from("members").select("*").eq("user_id", user.user.id).maybeSingle();
+  if (memberRow.error) throw new Error(memberRow.error.message);
+  const member = memberRow.data as Record<string, unknown> | null;
+  if (!member) throw new Error("No member record is linked to this account");
+  const memberId = member.id as string;
+
+  const [memberships, payments, attendance, measurements, sessions, plans, dietPlans, classes, invoices, photos] =
+    await Promise.all([
+      getMemberships(memberId),
+      getPayments(memberId, EXPORT_LIMIT),
+      getAttendance(memberId, EXPORT_LIMIT),
+      getMeasurements(memberId, EXPORT_LIMIT),
+      getRecentSessions(memberId, EXPORT_LIMIT),
+      getActiveWorkoutPlan(memberId),
+      getActiveDietPlan(memberId),
+      getMyBookings(memberId),
+      getInvoices(memberId, EXPORT_LIMIT),
+      many<{ id: string; taken_on: string; note: string | null }>(
+        supabase.from("member_progress_photos").select("id, taken_on, note:notes").eq("member_id", memberId).limit(EXPORT_LIMIT),
+      ),
+    ]);
+
+  // Sets ride along per session, the way the web export embeds them.
+  const withSets = await Promise.all(sessions.map((s) => getSets(s.id).then((sets) => ({ ...s, sets }))));
+  const meals = await getMeals();
+  const water = await getWaterLog();
+
+  return JSON.stringify(
+    {
+      exported_on: new Date().toISOString(),
+      // Curated, not select("*"): `notes` is what the desk wrote about the
+      // member, and the web export deliberately leaves it out for the same
+      // reason. On-device keys (meals, water) are included because the data
+      // is the member's even though it never reached the server.
+      profile: {
+        first_name: member.first_name,
+        last_name: member.last_name,
+        email: member.email,
+        phone: member.phone,
+        date_of_birth: member.date_of_birth,
+        gender: member.gender,
+        address: member.address,
+        emergency_contact_name: member.emergency_contact_name,
+        emergency_contact_phone: member.emergency_contact_phone,
+        member_code: member.member_code,
+        member_since: member.joined_on,
+        status: member.status,
+      },
+      memberships,
+      payments,
+      invoices,
+      attendance,
+      measurements,
+      workout_sessions: withSets,
+      workout_plan: plans,
+      diet_plan: dietPlans,
+      class_bookings: classes,
+      // Which photos exist, never a link: signed URLs expire and must not
+      // sit in a file the member forwards.
+      progress_photos: photos,
+      on_device: { meals, water },
+      note: "Progress photo images are not embedded; this lists which ones exist. Meals and water were logged on this device only.",
+    },
+    null,
+    2,
+  );
+}
+
+/**
+ * Delete the account through the 0016 RPC. Erases the member's identity,
+ * training history and sign-in; payments stay with the gym as financial
+ * records. Refuses gym owners with a readable error.
+ */
+export async function deleteMyAccount(): Promise<{ member_erased: boolean; photos_removed: number }> {
+  const { data, error } = await supabase.rpc("delete_my_account");
+  if (error) throw new Error(error.message || "Could not delete your account");
+  return data as { member_erased: boolean; photos_removed: number };
+}
+
+/**
+ * Everything this device keeps about a member: the offline cache screens fall
+ * back to, the meal and water logs, and (web builds) the session copy. The
+ * auth session itself lives in SecureStore or web localStorage and is cleared
+ * by supabase.auth.signOut(); this clears the rest, so the next person who
+ * opens the app on a shared phone cannot be served the previous member's
+ * cached history offline.
+ */
+export async function wipeLocalMemberData() {
+  const keys = await AsyncStorage.getAllKeys();
+  const mine = keys.filter(
+    (k) =>
+      k === "twoplus.water" ||
+      k === "twoplus.meals" ||
+      k.startsWith(CACHE_PREFIX) ||
+      k.startsWith(OUTBOX_PREFIX),
+  );
+  if (mine.length) await AsyncStorage.multiRemove(mine);
 }

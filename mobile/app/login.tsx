@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -8,27 +9,59 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../src/lib/auth";
-import { Button, T, ui } from "../src/components/ui";
-import { color, gutter, radius, space, type } from "../src/lib/theme";
+import { Backdrop, Button, T, ui } from "../src/components/ui";
+import { color, glass, gutter, radius, space, type } from "../src/lib/theme";
 
 /**
  * Sign in.
  *
- * Email and password only, because that is what the TwoPlus backend actually
- * supports: accounts are created by the gym or on the website, and this screen
- * must not imply a phone-OTP flow that has no server behind it.
+ * Email + password (accounts are created by the gym or on the website) and
+ * Google, which is delegated entirely to Supabase OAuth: the app only opens
+ * the browser and receives the session back on the twoplus:// deep link.
  */
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle, sendPasswordReset, notice } = useAuth();
+  const [info, setInfo] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reveal, setReveal] = useState(false);
+
+  async function google() {
+    setGoogleBusy(true);
+    setError(null);
+    try {
+      await signInWithGoogle();
+      // On web this navigates away; on native the session lands via the
+      // deep link and onAuthStateChange picks it up.
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start Google sign-in.");
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
+
+  async function forgot() {
+    const mail = email.trim();
+    setInfo(null);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) {
+      setError("Enter your email above first, then tap Forgot password.");
+      return;
+    }
+    setError(null);
+    try {
+      await sendPasswordReset(mail);
+      // Same message whether or not the address has an account.
+      setInfo(`If ${mail} has an account, a reset link is on its way. Open it on this phone, set a new password on the TwoPlus site, then sign in here.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send the reset email.");
+    }
+  }
 
   async function submit() {
     const mail = email.trim();
@@ -54,11 +87,7 @@ export default function LoginScreen() {
 
   return (
     <View style={s.root}>
-      <LinearGradient
-        colors={["#1A0C10", color.canvas, color.canvas]}
-        locations={[0, 0.42, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      <Backdrop />
       <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -71,23 +100,20 @@ export default function LoginScreen() {
           >
             <View style={s.brand}>
               <View style={s.mark}>
-                <T variant="h1" style={{ color: color.text, letterSpacing: -1 }}>+</T>
+                <T variant="h1" style={{ color: color.onAccent, letterSpacing: -1 }}>+</T>
               </View>
               <T variant="h1">TwoPlus</T>
-              <T variant="small" tone="muted" style={{ marginTop: 2 }}>
-                Your gym, in your pocket
-              </T>
             </View>
 
             <View style={s.card}>
-              <T variant="h2">Welcome back</T>
+              <T variant="h2">Sign in</T>
               <T variant="small" tone="muted" style={{ marginTop: 4 }}>
-                Sign in with the email your gym has on file.
+                Use the email your gym has on file.
               </T>
 
               <View style={{ gap: space.lg, marginTop: space.xxl }}>
                 <View style={{ gap: space.sm }}>
-                  <T variant="smallStrong" tone="muted">EMAIL</T>
+                  <T variant="smallStrong" tone="muted">Email</T>
                   <TextInput
                     value={email}
                     onChangeText={setEmail}
@@ -103,7 +129,7 @@ export default function LoginScreen() {
                 </View>
 
                 <View style={{ gap: space.sm }}>
-                  <T variant="smallStrong" tone="muted">PASSWORD</T>
+                  <T variant="smallStrong" tone="muted">Password</T>
                   <View style={s.passwordRow}>
                     <TextInput
                       value={password}
@@ -115,7 +141,7 @@ export default function LoginScreen() {
                       selectionColor={color.accentBright}
                       editable={!busy}
                       onSubmitEditing={submit}
-                      style={[s.input, { flex: 1, borderWidth: 0, paddingRight: 0 }]}
+                      style={[s.input, { flex: 1, borderWidth: 0, paddingRight: 0, backgroundColor: "transparent", boxShadow: "none" }]}
                     />
                     <Pressable
                       onPress={() => setReveal((v) => !v)}
@@ -133,6 +159,20 @@ export default function LoginScreen() {
                   </View>
                 </View>
 
+                {notice && !error ? (
+                  <View style={[s.error, { backgroundColor: color.accentSoft }]}>
+                    <Ionicons name="time-outline" size={16} color={color.accentText} />
+                    <T variant="small" style={{ flex: 1 }}>{notice}</T>
+                  </View>
+                ) : null}
+
+                {info ? (
+                  <View style={[s.error, { backgroundColor: color.accentSoft }]} accessibilityLiveRegion="polite">
+                    <Ionicons name="mail-outline" size={16} color={color.accentText} />
+                    <T variant="small" style={{ flex: 1 }}>{info}</T>
+                  </View>
+                ) : null}
+
                 {error ? (
                   <View style={s.error}>
                     <Ionicons name="alert-circle-outline" size={16} color={color.danger} />
@@ -143,6 +183,43 @@ export default function LoginScreen() {
                 ) : null}
 
                 <Button label="Sign in" onPress={submit} loading={busy} />
+
+                <Pressable
+                  onPress={() => void forgot()}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  style={{ alignSelf: "center", minHeight: 44, justifyContent: "center" }}
+                >
+                  <T variant="smallStrong" tone="accent">Forgot password?</T>
+                </Pressable>
+
+                <View style={s.orRow}>
+                  <View style={s.orLine} />
+                  <T variant="caption" tone="faint">
+                    or
+                  </T>
+                  <View style={s.orLine} />
+                </View>
+
+                <Pressable
+                  onPress={google}
+                  disabled={googleBusy || busy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign in with Google"
+                  style={({ pressed }) => [s.googleBtn, pressed && { opacity: 0.85 }]}
+                >
+                  {googleBusy ? (
+                    <ActivityIndicator color={color.text} />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-google" size={19} color="#4285F4" />
+                      <T variant="bodyStrong" style={{ color: color.text }}>
+                        Continue with Google
+                      </T>
+                    </>
+                  )}
+                </Pressable>
 
                 <T variant="caption" tone="faint" align="center" style={{ lineHeight: 17 }}>
                   No account yet? Ask your gym to add you, or sign up at twoplus.fit. Your
@@ -176,30 +253,25 @@ const s = StyleSheet.create({
     marginBottom: space.sm,
   },
   card: {
+    ...glass.bar,
     borderRadius: radius.xxl,
-    borderWidth: 1,
-    borderColor: color.glassBorder,
-    backgroundColor: color.glass,
+    borderCurve: "continuous",
     padding: space.xxl,
   },
   input: {
+    ...glass.well,
     minHeight: 52,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: color.line,
-    backgroundColor: color.surface,
     paddingHorizontal: space.lg,
     color: color.text,
     ...type.body,
     fontFamily: ui.family.regular,
   },
   passwordRow: {
+    ...glass.well,
     flexDirection: "row",
     alignItems: "center",
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: color.line,
-    backgroundColor: color.surface,
   },
   error: {
     flexDirection: "row",
@@ -208,5 +280,20 @@ const s = StyleSheet.create({
     backgroundColor: color.dangerSoft,
     borderRadius: radius.md,
     padding: space.md,
+  },
+  orRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+  },
+  orLine: { flex: 1, height: 1, backgroundColor: color.line },
+  googleBtn: {
+    ...glass.control,
+    minHeight: 52,
+    borderRadius: radius.pill,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space.md,
   },
 });

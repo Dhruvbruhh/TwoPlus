@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, Share, Text, View } from "react-native";
+import { Alert, BackHandler, Pressable, Share, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,7 +7,7 @@ import * as Location from "expo-location";
 import { useAuth } from "../src/lib/auth";
 import { saveRun } from "../src/lib/data";
 import { formatClock, formatPaceShort, runNote, totalKm, type Point } from "../src/lib/run";
-import { Button, T } from "../src/components/ui";
+import { Backdrop, Button, T } from "../src/components/ui";
 import { color, radius, space } from "../src/lib/theme";
 
 /**
@@ -29,10 +29,14 @@ export default function RunScreen() {
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const secondsRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Part of the saved note, so a retry after a lost response is recognised.
+  const startedRef = useRef<Date | null>(null);
 
   const stopWatch = useCallback(() => {
     watchRef.current?.remove();
     watchRef.current = null;
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
   }, []);
 
   useEffect(() => stopWatch, [stopWatch]);
@@ -50,6 +54,7 @@ export default function RunScreen() {
       return;
     }
     setStatus("tracking");
+    startedRef.current = new Date();
     setSeconds(0);
     setPoints([]);
     secondsRef.current = 0;
@@ -70,6 +75,10 @@ export default function RunScreen() {
     timerRef.current = null;
   }, []);
 
+  // stopWatch clears both the location watch and the 1-second tick; clearTimer
+  // is kept separate so stop() can halt the timer before the save attempt
+  // without giving up GPS updates it no longer needs anyway.
+
   const stop = useCallback(async () => {
     clearTimer();
     stopWatch();
@@ -87,7 +96,7 @@ export default function RunScreen() {
         memberId: member.id,
         organizationId: member.organization_id,
         durationMinutes: Math.round(secs / 60),
-        note: runNote(km, secs),
+        note: `${runNote(km, secs)} · started ${(startedRef.current ?? new Date()).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`,
       });
       setStatus("saved");
     } catch (e) {
@@ -96,12 +105,26 @@ export default function RunScreen() {
     }
   }, [clearTimer, member, points, stopWatch]);
 
+  // Android back while tracking would silently drop the run: ask first.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (status !== "tracking") return false;
+      Alert.alert("Stop tracking?", "Leaving now discards this run. Use Stop to save it.", [
+        { text: "Keep running", style: "cancel" },
+        { text: "Discard", style: "destructive", onPress: () => { stopWatch(); router.back(); } },
+      ]);
+      return true;
+    });
+    return () => sub.remove();
+  }, [status, stopWatch, router]);
+
   const km = useMemo(() => totalKm(points), [points]);
   const pace = formatPaceShort(km, seconds);
 
   if (status === "saved") {
     return (
       <View style={[s.wrap, { paddingTop: insets.top + space.huge }]}>
+        <Backdrop />
         <View style={s.badge}>
           <Ionicons name="checkmark" size={34} color={color.success} />
         </View>
@@ -139,14 +162,15 @@ export default function RunScreen() {
 
   return (
     <View style={[s.wrap, { paddingTop: insets.top + space.huge }]}>
+      <Backdrop />
       <T variant="caption" tone="faint">
-        {status === "tracking" ? "TRACKING" : "OUTDOOR RUN"}
+        {status === "tracking" ? "Tracking" : "Outdoor run"}
       </T>
       <Text style={s.clock}>{formatClock(seconds)}</Text>
       <View style={s.stats}>
         <View style={s.stat}>
           <T variant="caption" tone="faint">
-            DISTANCE
+            Distance
           </T>
           <Text style={s.statValue}>{km.toFixed(2)}</Text>
           <T variant="caption" tone="faint">
@@ -155,7 +179,7 @@ export default function RunScreen() {
         </View>
         <View style={s.stat}>
           <T variant="caption" tone="faint">
-            PACE
+            Pace
           </T>
           <Text style={s.statValue}>{pace ? pace.split(" /km")[0] : "—"}</Text>
           <T variant="caption" tone="faint">

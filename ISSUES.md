@@ -20,7 +20,22 @@ Severity: **S1** breaks a user flow · **S2** wrong behaviour in an edge case ·
 - **Fix:** `alter table public.members add column if not exists photo_url text;`
   (idempotent, additive, touches no existing data).
 - **Not fixed because:** it is a write to the live production database and
-  requires explicit owner approval.
+  requires explicit owner approval. Owner procedure: `docs/MIGRATION-CHECKLIST.md`.
+
+## S1 — `delete_my_account()` would abort on the phone-shape constraint
+
+- **Where:** `supabase/migrations/0016_account_deletion.sql:79` (found by review
+  2026-11-16, before the migration was ever applied).
+- **Symptom:** every real member's "Delete my account" would fail with a check
+  constraint error and delete nothing: 0006's `members_phone_shape`
+  (`phone ~ '^[0-9+() -]{6,20}$'`, NOT VALID but enforced on writes) rejects the
+  empty string the anonymisation step wrote. The dry-runs passed because they
+  ran against an empty members table.
+- **Fix:** applied in the migration file — the placeholder is now
+  `'0000000000'`, which satisfies the check. Safe to fix in place because the
+  migration has never been applied to the live database.
+- **Owner action still required:** apply the migration per
+  `docs/MIGRATION-CHECKLIST.md`.
 
 ## S1 — Migration history is inaccurate on the live database
 
@@ -125,6 +140,21 @@ The heading renders correctly (proven by direct DOM probe: one `main h1`, text
 "Members", visible) and the spec then passed 2/2. Cause is load timing on a cold
 dev server under `networkidle`. Left as-is deliberately: weakening the assertion
 would remove the check entirely.
+
+## S3 — Swallowed read/delete errors (fixed 2026-11-16)
+
+- **Where:** `src/App.tsx` (boot load, profile drawer) and
+  `src/pages/Member.tsx` (workout/photo deletes).
+- **Symptom:** transient failures rendered as honest-looking empty states —
+  staff names fell back to "Unassigned", the notification list and profile
+  history silently blanked, and optimistic deletes removed a row whose
+  deletion had actually failed (the record reappeared on reload with no
+  explanation).
+- **Fix:** failures now surface once through the existing toast/`window.alert`
+  paths while still rendering the empty list. Modal plan-detail loads
+  (`setPlanDetail(null)`) and the `getMyMember()` fallback
+  (`member-api.ts:348`) keep their silent catches deliberately: both have a
+  distinguishing signal elsewhere or fail into a harmless default.
 
 ---
 

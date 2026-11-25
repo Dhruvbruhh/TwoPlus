@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Pressable, View } from "react-native";
+import { Alert, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
 import { useAsync } from "../../src/lib/useAsync";
+import { haptic } from "../../src/lib/feedback";
 import {
   bookClass,
   cancelBooking,
@@ -25,10 +26,11 @@ import {
   Row,
   Screen,
   SectionHeader,
+  Segmented,
   Skeleton,
   T,
 } from "../../src/components/ui";
-import { color, radius, space } from "../../src/lib/theme";
+import { color, space } from "../../src/lib/theme";
 import { tabBarSpace } from "./_layout";
 
 type Pane = "plan" | "history" | "classes" | "diet";
@@ -66,7 +68,7 @@ export default function TrainScreen() {
       return { plan, diet, sessions, classes, bookings, seats };
     },
     [member?.id, member?.organization_id],
-    "train",
+    member ? `train:${member.id}` : undefined,
   );
 
   const bookedIds = useMemo(
@@ -93,8 +95,10 @@ export default function TrainScreen() {
     try {
       if (booked) await cancelBooking(classId);
       else await bookClass(classId);
+      haptic.success();
       await state.refresh();
     } catch (e) {
+      haptic.warning();
       Alert.alert(
         booked ? "Could not cancel" : "Could not book",
         e instanceof Error ? e.message : "Try again in a moment.",
@@ -114,37 +118,22 @@ export default function TrainScreen() {
     >
       <View style={{ paddingTop: space.md }}>
         <T variant="h1">Train</T>
-        <T variant="small" tone="muted" style={{ marginTop: 2 }}>
-          Everything your coach has set, and everything you have done.
-        </T>
       </View>
 
-      <Row gap={space.xs} style={{ flexWrap: "wrap" }}>
-        {PANES.map((p) => {
-          const on = pane === p.key;
-          return (
-            <Pressable
-              key={p.key}
-              onPress={() => setPane(p.key)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: on }}
-              style={{
-                paddingHorizontal: space.lg,
-                minHeight: 38,
-                justifyContent: "center",
-                borderRadius: radius.pill,
-                backgroundColor: on ? color.accentSoft : color.surfaceRaised,
-                borderWidth: 1,
-                borderColor: on ? "rgba(196,72,95,0.4)" : "transparent",
-              }}
-            >
-              <T variant="smallStrong" tone={on ? "accent" : "muted"}>
-                {p.label}
-              </T>
-            </Pressable>
-          );
-        })}
-      </Row>
+      <Card onPress={() => router.push("/coach")} accessibilityLabel="Open your coach">
+        <Row style={{ justifyContent: "space-between" }}>
+          <Row gap={space.sm} style={{ flex: 1 }}>
+            <Ionicons name="person-outline" size={20} color={color.accentText} />
+            <View style={{ flex: 1 }}>
+              <T variant="bodyStrong">Your coach</T>
+              <T variant="small" tone="muted">Trainer, contact and insights</T>
+            </View>
+          </Row>
+          <Ionicons name="chevron-forward" size={18} color={color.textFaint} />
+        </Row>
+      </Card>
+
+      <Segmented items={PANES} value={pane} onChange={setPane} />
 
       {state.loading ? (
         <Skeleton height={180} />
@@ -301,10 +290,10 @@ export default function TrainScreen() {
             {state.data.diet.plan.target_calories ? (
               <Row gap={space.lg} style={{ marginTop: space.lg }}>
                 {[
-                  { label: "KCAL", v: state.data.diet.plan.target_calories },
-                  { label: "PROTEIN", v: state.data.diet.plan.target_protein_g },
-                  { label: "CARBS", v: state.data.diet.plan.target_carbs_g },
-                  { label: "FAT", v: state.data.diet.plan.target_fat_g },
+                  { label: "Kcal", v: state.data.diet.plan.target_calories },
+                  { label: "Protein", v: state.data.diet.plan.target_protein_g },
+                  { label: "Carbs", v: state.data.diet.plan.target_carbs_g },
+                  { label: "Fat", v: state.data.diet.plan.target_fat_g },
                 ]
                   .filter((x) => x.v)
                   .map((x) => (

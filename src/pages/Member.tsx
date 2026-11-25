@@ -32,7 +32,7 @@ import {
 import { formatDate, formatMoney } from "@/lib/types"
 import { Badge } from "@/components/kit"
 import { HoldButton } from "@/components/HoldButton"
-import { CACHE, cachedRead, submitOrQueue, useOutbox } from "@/lib/member-sync"
+import { CACHE, cachedRead, memberOutbox, submitOrQueue, useOutbox } from "@/lib/member-sync"
 import { clearCache } from "@/lib/offline-cache"
 import { WorkoutLogger, WorkoutHistory } from "./member-workout"
 import { ClassSchedule, MeasurementForm, ProgressGallery } from "./member-extras"
@@ -137,8 +137,11 @@ export default function Member() {
   }, [outbox, loadMember])
 
   const handleSignOut = () => {
-    // The cache holds a member's training and payment history; sign-out clears it.
+    // The cache holds a member's training and payment history; sign-out clears
+    // it. The outbox holds unsent writes: leaving them would replay this
+    // member's work into the next account on a shared browser.
     clearCache()
+    memberOutbox.clear()
     void signOut()
   }
 
@@ -179,6 +182,7 @@ export default function Member() {
     try {
       await deleteMyAccount()
       clearCache()
+      memberOutbox.clear()
       await signOut()
     } catch (err) {
       setDataError(err instanceof Error ? err.message : "Could not delete your account")
@@ -318,7 +322,11 @@ export default function Member() {
               if (!window.confirm("Delete this workout from your history?")) return
               void deleteWorkoutSession(id)
                 .then(() => setSessions((prev) => prev.filter((s) => s.id !== id)))
-                .catch(() => undefined)
+                .catch((err) => {
+                  // Optimistic removal already happened; on failure the row
+                  // comes back on reload, so the member must hear why.
+                  window.alert(err instanceof Error ? err.message : "Could not delete that workout")
+                })
             }}
           />
         </Section>
@@ -390,7 +398,11 @@ export default function Member() {
                 if (!window.confirm("Delete this progress photo permanently?")) return
                 void deleteProgressPhoto(photo)
                   .then(() => setPhotos((prev) => prev.filter((p) => p.id !== photo.id)))
-                  .catch(() => undefined)
+                  .catch((err) => {
+                    // Same as workout deletes: the optimistic row removal
+                    // undoes itself on reload, so surface the failure.
+                    window.alert(err instanceof Error ? err.message : "Could not delete that photo")
+                  })
               }}
             />
           )}

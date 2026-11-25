@@ -4,11 +4,25 @@ What is ready for the Play Store and the App Store, what is not, and the exact
 answers the listing forms need. Everything here was checked against the repo, not
 remembered.
 
+**Two apps ship from this repo.** Do not mix them in a listing:
+
+| | Owner web shell | Member app |
+| --- | --- | --- |
+| App id | `fit.twoplus.app` | `fit.twoplus.member` |
+| Stack | Capacitor wrapper around `dist/` | Expo / React Native (`mobile/`) |
+| Audience | the gym owner, at the desk | the gym's members, in the gym |
+| Android permission footprint | `INTERNET` only | camera, location, images (see below; activity recognition removed in 1.0.1) |
+| Signed Android artifacts | `release/mobile/TwoPlus-1.0-android.{apk,aab}` | `release/mobile/TwoPlus-1.0-android-member.{apk,aab}` |
+
+The Play Store listing this document targets for members is the **member app**.
+The shell can ship later under the same developer account with its own (much
+simpler) listing. `docs/BUILDING.md` documents both build recipes.
+
 Status legend: **ready** (done and verified here), **prepared** (text or config
 exists, the human action remains), **blocked** (needs credentials or an account
 that does not exist).
 
-## Shared identity
+## Owner web shell identity
 
 | Item | Value | Where |
 | --- | --- | --- |
@@ -22,7 +36,66 @@ that does not exist).
 the native values, so bump them together when you cut a release, and raise
 `versionCode` / `CURRENT_PROJECT_VERSION` by one on every upload.
 
-## Permissions and declarations
+## Member app identity and permissions
+
+Verified 2026-11-16 against `mobile/app.json`, the merged release manifest, and
+`aapt2 dump badging` on the built APK:
+
+| Item | Value | Source |
+| --- | --- | --- |
+| App id | `fit.twoplus.member` | `mobile/app.json` (`android.package`, `ios.bundleIdentifier`) |
+| Version | `1.0.0`, `versionCode 1` | `mobile/app.json`; confirmed in the built APK |
+| SDK range | minSdk 24, targetSdk 36 | `aapt2 dump badging` on the built APK |
+| Sign-in | email/password + Google (Supabase OAuth, PKCE, `twoplus://` deep link) | `mobile/src/lib/auth.tsx`, manifest intent filter |
+| Store presence | NOT yet in any Play Console; no listing record exists | owner |
+
+Android permissions in the **built release APK** (merged manifest, not just the
+five requested in `app.json`):
+
+- Declared by the app: `CAMERA` (food scanner), `ACCESS_COARSE_LOCATION` +
+  `ACCESS_FINE_LOCATION` (run tracking), ~~`ACTIVITY_RECOGNITION` (step counting)~~ removed in 1.0.1 (no step-count feature exists; now in `blockedPermissions`),
+  `READ_MEDIA_IMAGES` (photo library pick), `INTERNET`.
+- Added by Expo prebuild defaults: `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`,
+  `VIBRATE`, `READ_EXTERNAL_STORAGE` (≤ SDK 32), `WRITE_EXTERNAL_STORAGE` (≤ SDK 32).
+
+**Provenance (manifest-merger blame report, verified 2026-11-16):** app source
+has no audio-recording or overlay code. `RECORD_AUDIO` is injected by the
+`expo-image-picker` config plugin (it adds microphone permission unless
+`microphonePermission: false`); `SYSTEM_ALERT_WINDOW` is hardcoded in Expo's
+prebuild manifest template as an "optional permission". Neither comes from a
+third-party library manifest merge.
+
+**Remediation applied:** `expo.android.blockedPermissions:
+["RECORD_AUDIO", "SYSTEM_ALERT_WINDOW"]` set in `mobile/app.json`; prebuild
+regenerated `mobile/android/app/src/main/AndroidManifest.xml` with
+`tools:node="remove"` on both entries, which strips them from the final merged
+manifest at build time. Remaining prebuild extras (`VIBRATE`, legacy external
+storage ≤ SDK 32) are inert or legacy-normal; left in place.
+
+**Verified in the rebuilt artifacts (2026-11-16, see `BUILDING.md` for paths and
+SHA-256 hashes):** `aapt2 dump badging` on the release APK and a parse of the AAB
+base manifest both show `RECORD_AUDIO` and `SYSTEM_ALERT_WINDOW`
+**absent**. Package `fit.twoplus.member`, versionCode 1 / versionName 1.0.0 /
+targetSdk 36, v2-signed with the same release certificate
+(`CN=TwoPlus, OU=Mobile, O=TwoPlus, C=IN`). APK additionally carries
+library-added permissions not in `app.json`: `ACCESS_NETWORK_STATE`,
+`USE_BIOMETRIC`/`USE_FINGERPRINT`, `DUMP` (AAB only), and its own
+`DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` — benign, from AndroidX/biometric
+libraries. Data Safety answers must still match the **manifest**.
+
+**Owner decision before submission:** ~~the merged manifest asks for more than the
+product uses. `RECORD_AUDIO` and `SYSTEM_ALERT_WINDOW` in particular will draw
+review questions and are not used by any feature. Trim them (via
+`expo.android.blockedPermissions` in `mobile/app.json`, then prebuild + rebuild)
+or prepare a justification for the Data Safety form.~~ Resolved via
+`blockedPermissions` (see above). Data Safety answers must
+match the **manifest**, not the intent.
+
+iOS (`mobile/app.json` `ios.infoPlist`): location-when-in-use, camera, photo
+library usage descriptions are present (motion description removed in 1.0.1 with the unused step counting). No iOS build has been
+produced yet (needs macOS/Xcode); the keys were written, not verified on a build.
+
+## Permissions and declarations (owner web shell)
 
 Verified in this repo:
 
@@ -46,8 +119,11 @@ with a plain explanation if a build is rejected for it, rather than guessing now
 
 ## Data safety / privacy nutrition label
 
-These are the real answers, derived from the schema (`supabase/migrations/`) and
-`src/lib/member-api.ts`:
+These are the real answers for the **owner web shell**, derived from the schema
+(`supabase/migrations/`) and `src/lib/member-api.ts`. The member app's form needs
+its own pass (see the placeholders section): it adds location from run tracking,
+camera/photo inputs from the scanner, and on-device meal logs, each of which
+changes the collected/linked answers.
 
 | Category | Collected | Purpose | Linked to identity | Optional |
 | --- | --- | --- | --- | --- |
@@ -70,17 +146,51 @@ the Android shell blocks mixed content). There is no data broker or ad network.
 
 Deletion: a member can request deletion in the app (Phase 18 flow); the gym owner
 or the operator actions it. Account deletion removes the auth account and the
-member record, subject to the retention notes in `docs/PRIVACY-AND-RETENTION.md`.
+member record, subject to the retention notes in `docs/PRIVACY-LIFECYCLE.md`.
+
+### Member app: the same form's real answers
+
+Derived 2026-11-16 from the built release APK's permission list, `mobile/src/lib/data.ts`,
+`mobile/app/run.tsx`, `mobile/app/scan.tsx`, and the AsyncStorage keys. The
+member app collects a strict subset of the shell's table (a member cannot edit
+payments or staff records) plus three things the shell does not have:
+
+| Category | Collected | Purpose | Linked to identity | Optional |
+| --- | --- | --- | --- | --- |
+| Email address | yes (member sign-in) | account, sign-in | yes | no |
+| Name, phone, date of birth, gender, address, emergency contacts | as the gym recorded them; member edits where the UI allows | member record | yes | mostly (dob/gender/address/emergency nullable) |
+| Fitness data | workout logs, sets, body measurements, diet plans, water log | the product itself | yes | yes |
+| Health app data: meals | meal log with per-item macros, entered manually or from the food scanner | nutrition tracking | yes | yes |
+| Photos | progress photos (1.0.1): taken or picked in Profile → Body, uploaded to the private `member-progress` bucket, shown via 10-minute signed links | fitness tracking | yes | yes |
+| Location (coarse + fine) | run tracking, foreground only (`expo-location`, `Accuracy.Balanced`) | distance, time, pace for a run the member starts | yes | yes (feature is opt-in per run) |
+| Camera | food scanner label photo | extract macros into the meal log | no (photo is processed on-device/discarded; only the meal entry is stored) | yes |
+| Activity recognition | not collected from 1.0.1 (permission removed) | — | — | — |
+| On-device only: meals and water history | AsyncStorage (`twoplus.meals`, `twoplus.water`) | offline nutrition log | no (never leaves the device) | yes |
+
+Location accuracy note for the form: the app never uploads GPS coordinates.
+`saveRun()` persists only `duration_minutes` and a note string (`runNote(km, secs)`
+→ "2.4 km in 12:30 · 5:12 /km") into `workout_sessions`; the route points stay in
+memory on the device and are discarded when the run screen closes
+(`mobile/app/run.tsx` states this to the user verbatim). So the Play "Location"
+answer is **collected, used in app, not shared, not ephemeral for the derived
+stats but ephemeral for the coordinates themselves** — and the Data Safety form's
+"location" row can honestly say the precise position is never transmitted.
+
+Not collected by the member app: payments data entry, staff records, advertising
+identifier, device fingerprint, contacts, background location. Nothing is used
+for tracking across apps. Deletion: in-app "Delete my account" (0016 RPC, once
+applied) plus the on-device wipe; export: in-app JSON via the share sheet.
 
 ## Assets
 
 | Asset | Status | Note |
 | --- | --- | --- |
-| App icon 1024 | ready | same mark as the desktop ICO, generated from `public/favicon.svg` |
-| Feature graphic (1024x500) | blocked | not produced; needs a design decision |
-| Phone screenshots | prepared | `screenshots/board-390-*.png` are real captures at 390x844 of the workspace. Play Store needs a phone set and a separate tablet set; App Store needs 1290x2796 and 1242x2688 |
-| Member-app screenshots | prepared | `scripts/storeshots.mjs` captures the member app at the four sizes the stores demand (1080x1920, 1600x2560, 1290x2796, 1242x2688). It needs an account linked to a member record; run against one and it writes `screenshots/store/`. The signed-in test account is not linked, so it refuses to shoot the claim prompt instead of shipping that as a listing image |
-| Store description | prepared | see below |
+| App icon 1024 | ready | same mark as the desktop ICO, generated from `public/favicon.svg` (shell). The member app's icon comes from `mobile/assets/` - confirm which listing gets which |
+| Listing icon 512x512 | ready | `node scripts/make-listing-icon.mjs` downscales `mobile/assets/icon.png` (the member app's real mark) to `release/store/listing-icon-512x512.png`; output verified 512x512 PNG, mean channel delta <=0.2/255 vs a reference downscale |
+| Feature graphic (1024x500) | ready | `brand/feature-graphic.svg` (maintainable source: disc + H geometry and colours measured from `mobile/assets/icon.png`, Inter wordmark from the app's font); exported with `node scripts/make-feature-graphic.mjs` to `release/store/feature-graphic-1024x500.png` (1024x500, RGBA). Re-export after editing the SVG |
+| Owner-workspace screenshots | prepared | `screenshots/board-390-*.png` are real captures at 390x844 of the workspace. Play Store needs a phone set and a separate tablet set; App Store needs 1290x2796 and 1242x2688 |
+| Member-app screenshots | blocked | `scripts/storeshots.mjs` captures the **web dashboard's `/member` view**, not the Expo member app — usable only if the shell's member view is ever listed. Real member-app listing screenshots must come from the Expo app (device/emulator captures, or Playwright against the Metro web build at 1080x1920 / 1600x2560 / 1290x2796 / 1242x2688). None exist yet |
+| Store description | prepared (shell only) | the draft below is written for the **owner workspace** listing. A member-app listing needs its own copy — `docs/PLAY_STORE_LISTING.md` may hold owner drafts |
 | Privacy policy URL | prepared | `/privacy` exists in the app; a public URL is required and the copy still needs counsel review |
 
 Draft short description (80 characters, Play Store limit):
@@ -106,10 +216,23 @@ Ready:
 - [x] No tracking SDKs, so the tracking declaration is a clean "no"
 - [x] Data-safety answers derived from the actual schema
 - [x] CI builds an APK and an iOS simulator build on every push, so a native
-      regression is caught before submission
+      regression is caught before submission; `mobile.yml` additionally gates
+      the member app itself (types, unit tests, a debug compile of a fresh
+      `expo prebuild`) on every change under `mobile/` or `supabase/migrations/`
 - [x] Host builds a signed Android APK and AAB from a keystore kept outside the
       repo (`android/keystore.properties`, gitignored). Both artifacts sit in
       `release/mobile/` with checksums; certificate `CN=TwoPlus`
+- [x] In-app account deletion and data export exist in the mobile member app
+      (profile screen "Your data" section; `delete_my_account` RPC from
+      migration 0016 + JSON export via the share sheet). Google's account
+      deletion requirement for apps with account creation is met in code.
+      Release artifacts rebuilt 2026-11-16 from commit cfbf2cf, which includes
+      the deletion-flow review fixes (0016 phone placeholder, on-device wipe,
+      export parity), the member-flow fixes (UTC day keys, timer leak, scanner
+      error path), and the RLS policy fixes (migration 0017); hashes in
+      `BUILDING.md`. The RPC itself is still not live
+      in production — applying migrations 0005+0016 (plus 0017) is the owner
+      procedure in `docs/MIGRATION-CHECKLIST.md`.
 
 Prepared, human action required:
 
@@ -121,7 +244,8 @@ Prepared, human action required:
       profile, and an archive uploaded through Xcode or Transporter
 - [ ] Run `node scripts/storeshots.mjs` against a login linked to a member
       record, then capture the tablet set of the workspace
-- [ ] Produce a 1024x500 feature graphic
+- [x] Produce a 1024x500 feature graphic (`brand/feature-graphic.svg` +
+      `scripts/make-feature-graphic.mjs` -> `release/store/feature-graphic-1024x500.png`)
 - [ ] Publish the privacy policy at a stable public URL and put it in both
       listings
 - [ ] Create the Play Console and App Store Connect records
@@ -142,6 +266,8 @@ Blocked, and why:
 A signed Android APK and AAB were produced here and no store has accepted either.
 JDK 21 and Android SDK 36 built them from the project keystore:
 
+**Owner web shell** (`release/mobile/`, recorded at build time):
+
 | Artifact | Path | Size | SHA-256 |
 | --- | --- | --- | --- |
 | APK | `release/mobile/TwoPlus-1.0-android.apk` | 3,994,559 B | `F708EB2F…20B9981` |
@@ -154,6 +280,50 @@ permission. Nothing
 was installed on a physical device: `adb devices` is empty, so the APK is verified
 as a signed package, not as a working install.
 
-Remaining gaps: an IPA needs macOS with Xcode, and both listings need the Play
-Console and App Store Connect records plus the owner's authorization to submit.
-`docs/BUILDING.md` records the exact commands.
+**Member app** (current pair built 2026-11-16 from commit cfbf2cf by the
+documented short-path process; see `BUILDING.md` for the build recipe and the
+hash table of earlier pairs):
+
+| Artifact | Path | Size | SHA-256 |
+| --- | --- | --- | --- |
+| APK | `release/mobile/TwoPlus-1.0-android-member.apk` | 110,814,829 B | `7AE4C142F0BA6601AF76C42318FFF6FC9FDABA5ABEB6098256F71313C155F183` |
+| AAB | `release/mobile/TwoPlus-1.0-android-member.aab` | 75,748,153 B | `D75473A5A20B6BA72C7A03F25A877E15C18325CDA40749C27A5452AF8261628E` |
+
+Same keystore family: APK verified with `apksigner` (v2 scheme only; v1/v3/v3.1/v4
+false), AAB with `jarsigner`/`keytool` (v1/JAR is the correct scheme for
+bundles); signer `CN=TwoPlus, OU=Mobile, O=TwoPlus, C=IN`, SHA-256
+`4ea08dc0…eed7`, certificate valid until 2054-03-22. `aapt2 dump
+badging` reports `fit.twoplus.member`, versionCode 1, versionName `1.0.0`,
+minSdk 24, targetSdk 36, and the permission set listed above (13 entries,
+identical to the previous pair; the AAB additionally declares `DUMP` from the
+bundle tooling). Neither artifact
+was installed on a device or uploaded anywhere.
+
+Remaining gaps: an IPA for either app needs macOS with Xcode, and both listings
+need the Play Console and App Store Connect records plus the owner's
+authorization to submit. `docs/BUILDING.md` records the exact commands for both
+apps, including what `expo prebuild` overwrites on every run.
+
+## Owner review placeholders
+
+These sections are deliberately **not filled in**: they are legal/policy claims
+about a product operated by the owner, and guessing them would put wrong
+statements into a store listing. Each needs the owner's answer before submission.
+
+- [ ] **Play Store listing text** for the member app: title, short description,
+      full description, screenshots of the *member* app (the captures in
+      `screenshots/board-390-*` show the owner workspace, not this app),
+      feature graphic. `docs/PLAY_STORE_LISTING.md` may hold owner drafts.
+- [ ] **Data Safety form** for the member app: the real answers are derived and
+      tabled above ("Member app: the same form's real answers"); the remaining
+      owner work is transcribing them into the Console form, which only exists
+      once the app record is created.
+- [ ] **Privacy policy and legal claims**: the member app's privacy copy must
+      describe on-device nutrition data and Google sign-in; counsel review is
+      still owed for both listings.
+- [ ] **Play Console checks**: create the app record, complete the content
+      rating questionnaire, declare the ads/no-ads status, set up the testing
+      track, and decide whether the location permission triggers a permissions
+      declaration video.
+- [ ] **Apple side**: every iOS statement here describes config files only; no
+      iOS build or review readiness exists yet.

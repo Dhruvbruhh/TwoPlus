@@ -16,6 +16,7 @@ import {
 import { humanise, initials, shortDate, streakFrom } from "../../src/lib/format";
 import { coachInsights } from "../../src/lib/insights";
 import {
+  BackButton,
   Button,
   Card,
   Chip,
@@ -55,7 +56,7 @@ export default function CoachScreen() {
       return { trainer, plan, diet, measurements, sessions, attendance };
     },
     [member?.id, member?.trainer_id],
-    "coach",
+    member ? `coach:${member.id}` : undefined,
   );
 
   const latest = state.data?.measurements[0] ?? null;
@@ -79,7 +80,8 @@ export default function CoachScreen() {
       }}
       contentStyle={{ paddingBottom: tabBarSpace(insets.bottom) }}
     >
-      <View style={{ paddingTop: space.md }}>
+      <View style={{ paddingTop: space.sm }}>
+        <BackButton label="Train" />
         <T variant="h1">Coach</T>
         <T variant="small" tone="muted" style={{ marginTop: 2 }}>
           Who is looking after your training, and what they have set.
@@ -91,7 +93,7 @@ export default function CoachScreen() {
       {insights.length ? (
         <Card>
           <T variant="caption" tone="faint">
-            THIS WEEK
+            This week
           </T>
           <View style={{ marginTop: space.md, gap: space.md }}>
             {insights.map((i) => (

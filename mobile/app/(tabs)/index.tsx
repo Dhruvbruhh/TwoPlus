@@ -1,10 +1,11 @@
 import React, { useMemo } from "react";
-import { Pressable, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
 import { useAsync } from "../../src/lib/useAsync";
+import { haptic } from "../../src/lib/feedback";
 import {
   addWater,
   getActiveWorkoutPlan,
@@ -17,9 +18,8 @@ import {
   getUpcomingClasses,
   getWaterLog,
   bmiOf,
-  formatMoney,
 } from "../../src/lib/data";
-import { clockTime, daysLeft, greeting, shortDate, streakFrom } from "../../src/lib/format";
+import { clockTime, dayKey, daysLeft, shortDate, streakFrom } from "../../src/lib/format";
 import { dailyMissions, progressionFrom, XP_SESSION, XP_VISIT } from "../../src/lib/progression";
 import { waterTargetMl } from "../../src/lib/fitness";
 import {
@@ -27,15 +27,15 @@ import {
   Card,
   Chip,
   EmptyState,
+  HeroBand,
   ProgressBar,
   Row,
   Screen,
   SectionHeader,
   Skeleton,
-  Stat,
   T,
 } from "../../src/components/ui";
-import { color, radius, space } from "../../src/lib/theme";
+import { color, glass, radius, space } from "../../src/lib/theme";
 import { tabBarSpace } from "./_layout";
 
 /**
@@ -45,7 +45,7 @@ import { tabBarSpace } from "./_layout";
  * records - no second source of truth, nothing farmed.
  */
 export default function HomeScreen() {
-  const { member, unclaimed } = useAuth();
+  const { member, unclaimed, signOut, error: authError, refreshMember } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -67,7 +67,7 @@ export default function HomeScreen() {
       return { org, memberships, attendance, plan, classes, bookings, measurements, sessions, water };
     },
     [member?.id, member?.organization_id],
-    "home",
+    member ? `home:${member.id}` : undefined,
   );
 
   const view = useMemo(() => {
@@ -77,7 +77,7 @@ export default function HomeScreen() {
     const active = d.memberships.find((m) => m.status === "active") ?? d.memberships[0] ?? null;
     const left = active ? daysLeft(active.end_date) : null;
 
-    const monthKey = new Date().toISOString().slice(0, 7);
+    const monthKey = dayKey().slice(0, 7);
     const visitsThisMonth = d.attendance.filter((a) => a.check_in.slice(0, 7) === monthKey).length;
 
     const latest = d.measurements[0] ?? null;
@@ -91,7 +91,7 @@ export default function HomeScreen() {
     const nextClass = d.classes[0] ?? null;
 
     // Engagement: derived from the same records the rest of the app uses.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = dayKey();
     const completedDays = d.sessions
       .filter((s) => s.completed_at != null)
       .map((s) => s.performed_on);
@@ -137,19 +137,31 @@ export default function HomeScreen() {
     return (
       <Screen>
         <View style={{ paddingTop: space.xxl }}>
-          <T variant="caption" tone="faint">
-            {greeting().toUpperCase()}
-          </T>
-          <T variant="h1" style={{ marginTop: space.xs }}>
+          <T variant="h1">
             Almost there
           </T>
         </View>
         <EmptyState
           icon="link-outline"
           title="Your gym has not linked this email yet"
-          body="You are signed in, but no member record matches this address. Ask the front desk to add this exact email to your profile, then pull down to refresh."
-          action="Sign out"
-          onAction={() => router.replace("/login")}
+          body="You are signed in, but we could not link exactly one gym membership to this email. Ask the front desk to check the email on your profile, then tap Check again. If you use another email with your gym, sign out and use that one."
+          action="Check again"
+          onAction={() => void refreshMember()}
+        />
+        <Button label="Sign out" variant="secondary" icon="log-out-outline" onPress={() => void signOut()} />
+      </Screen>
+    );
+  }
+
+  if (!member && authError) {
+    return (
+      <Screen>
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Could not load your membership"
+          body={authError}
+          action="Try again"
+          onAction={() => void refreshMember()}
         />
       </Screen>
     );
@@ -163,20 +175,28 @@ export default function HomeScreen() {
       }}
       contentStyle={{ paddingBottom: tabBarSpace(insets.bottom) }}
     >
+      {/* CRM page heading: quiet eyebrow, then a tight title. */}
       <View style={{ paddingTop: space.md }}>
-        <T variant="caption" tone="faint">
-          {greeting().toUpperCase()}
-        </T>
-        <T variant="h1" style={{ marginTop: space.xs }}>
-          {member ? `${member.first_name}` : "Welcome"}
-        </T>
         {state.data?.org ? (
-          <T variant="small" tone="muted" style={{ marginTop: 2 }}>
+          <T variant="caption" tone="faint" numberOfLines={1} style={{ marginBottom: 6 }}>
             {state.data.org.name}
-            {member?.member_code ? ` · ${member.member_code}` : ""}
           </T>
         ) : null}
+        <T variant="h1">{member ? `Hi, ${member.first_name}` : "Today"}</T>
       </View>
+
+      {member && member.status !== "active" ? (
+        <Card>
+          <Row gap={space.sm}>
+            <Ionicons name="lock-closed-outline" size={18} color={color.warning} />
+            <T variant="small" tone="warning" style={{ flex: 1 }}>
+              {member.status === "suspended"
+                ? "Your gym has suspended this membership record. You can still see your history; please speak to the front desk before training."
+                : "This membership record is archived. Your history stays readable; ask the front desk if you are rejoining."}
+            </T>
+          </Row>
+        </Card>
+      ) : null}
 
       {state.loading ? (
         <>
@@ -185,118 +205,77 @@ export default function HomeScreen() {
         </>
       ) : (
         <>
-          {/* Membership: the one fact that gates everything else. */}
-          <Card>
-            <Row style={{ justifyContent: "space-between" }}>
-              <T variant="caption" tone="faint">
-                MEMBERSHIP
+          {/* Today's training is the screen's one focal point and its only filled button. */}
+          {state.data?.plan ? (
+            <View style={s.today}>
+              <T variant="small" tone="muted">
+                Today's workout
               </T>
-              {view?.active ? (
-                <Chip
-                  label={view.active.status === "active" ? "Active" : view.active.status}
-                  tone={view.active.status === "active" ? "success" : "warning"}
-                />
-              ) : (
-                <Chip label="None" tone="danger" />
-              )}
-            </Row>
+              <T variant="h2" numberOfLines={2} style={{ marginTop: 2 }}>
+                {state.data.plan.plan.name}
+              </T>
+              <T variant="small" tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>
+                {view?.exerciseCount ?? 0} exercises
+                {state.data.plan.plan.goal ? ` · ${state.data.plan.plan.goal}` : ""}
+                {view?.trainedToday ? " · done today" : ""}
+              </T>
+              <Button
+                label={view?.trainedToday ? "Train again" : "Start workout"}
+                onPress={() => router.push("/workout")}
+                style={{ marginTop: space.lg }}
+              />
+            </View>
+          ) : (
+            <EmptyState
+              icon="barbell-outline"
+              title="No plan assigned yet"
+              body="Your coach has not assigned a workout plan. It will appear here as soon as they do."
+            />
+          )}
 
+          {/* Membership: one line while it is fine, louder only when it needs action. */}
+          <Card>
             {view?.active ? (
-              <>
-                <T variant="h2" style={{ marginTop: space.sm }}>
-                  {view.active.plan_name ?? "Membership"}
-                </T>
-                <Row style={{ marginTop: space.md, justifyContent: "space-between" }}>
-                  <View style={{ flex: 1 }}>
-                    <T variant="caption" tone="faint">
-                      RENEWS
-                    </T>
-                    <T variant="bodyStrong">{shortDate(view.active.end_date)}</T>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <T variant="caption" tone="faint">
-                      PAID
-                    </T>
-                    <T variant="bodyStrong">
-                      {view.active.price_minor != null
-                        ? formatMoney(view.active.price_minor, state.data?.org?.currency ?? "INR")
-                        : "—"}
-                    </T>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <T variant="caption" tone="faint">
-                      {view.left != null && view.left >= 0 ? "DAYS LEFT" : "EXPIRED"}
-                    </T>
-                    <T
-                      variant="bodyStrong"
-                      tone={view.left != null && view.left < 7 ? "warning" : "text"}
-                    >
-                      {view.left != null ? Math.max(0, view.left) : "—"}
-                    </T>
-                  </View>
-                </Row>
-              </>
+              <Row style={{ justifyContent: "space-between" }}>
+                <View style={{ flex: 1, paddingRight: space.md }}>
+                  <T variant="bodyStrong" numberOfLines={1}>
+                    {view.active.plan_name ?? "Membership"}
+                  </T>
+                  <T
+                    variant="small"
+                    tone={view.left != null && view.left < 7 ? "warning" : "muted"}
+                    style={{ marginTop: 2 }}
+                  >
+                    {view.left == null
+                      ? "No end date on file"
+                      : view.left < 0
+                        ? `Ended ${shortDate(view.active.end_date)}`
+                        : `Renews ${shortDate(view.active.end_date)} · ${view.left} ${view.left === 1 ? "day" : "days"} left`}
+                  </T>
+                </View>
+                {view.active.status !== "active" ? <Chip label={view.active.status} tone="warning" /> : null}
+              </Row>
             ) : (
-              <T variant="small" tone="muted" style={{ marginTop: space.sm }}>
+              <T variant="small" tone="muted">
                 No membership on file. See the front desk to start one.
               </T>
             )}
           </Card>
 
-          {/* Level + XP ring: derived from real sessions and visits. */}
-          {view?.progression ? (
-            <Card>
-              <Row style={{ justifyContent: "space-between" }}>
-                <View style={{ flex: 1, paddingRight: space.md }}>
-                  <T variant="caption" tone="faint">
-                    {view.progression.levelName.toUpperCase()}
-                  </T>
-                  <T variant="h2">{view.progression.xp.toLocaleString()} XP</T>
-                  <T variant="caption" tone="muted" style={{ marginTop: 2 }}>
-                    {view.progression.xpToNext != null
-                      ? `${view.progression.xpToNext.toLocaleString()} XP to ${nextLevelName(view.progression.levelIndex)}`
-                      : "Top level reached"}
-                  </T>
-                  <ProgressBar
-                    progress={view.progression.levelProgress}
-                    style={{ marginTop: space.md }}
-                  />
-                </View>
-                <View style={{ alignItems: "flex-end", gap: space.sm }}>
-                  <View
-                    style={{
-                      width: 54,
-                      height: 54,
-                      borderRadius: radius.pill,
-                      backgroundColor: color.accentSoft,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <T variant="bodyStrong" tone="accent">
-                      L{view.progression.levelIndex + 1}
-                    </T>
-                  </View>
-                </View>
-                <T variant="caption" tone="faint">
-                  {XP_SESSION} XP / workout · {XP_VISIT} / visit
-                </T>
-              </Row>
-            </Card>
-          ) : null}
-
-          <Card>
-            <Row gap={space.lg}>
-              <Stat label="Streak" value={String(view?.streak ?? 0)} unit="days" tone="accent" />
-              <Stat label="This month" value={String(view?.visitsThisMonth ?? 0)} unit="visits" />
-              <Stat
-                label="Weight"
-                value={view?.latest?.weight_kg != null ? String(Number(view.latest.weight_kg)) : "—"}
-                unit={view?.latest?.weight_kg != null ? "kg" : undefined}
-              />
-            </Row>
+          <View style={{ gap: space.sm }}>
+            <HeroBand
+              items={[
+                { label: "Streak", value: String(view?.streak ?? 0), unit: "days" },
+                { label: "This month", value: String(view?.visitsThisMonth ?? 0), unit: "visits" },
+                {
+                  label: "Weight",
+                  value: view?.latest?.weight_kg != null ? String(Number(view.latest.weight_kg)) : "—",
+                  unit: view?.latest?.weight_kg != null ? "kg" : undefined,
+                },
+              ]}
+            />
             {view?.weightDelta != null && Math.abs(view.weightDelta) >= 0.1 ? (
-              <Row gap={space.xs} style={{ marginTop: space.md }}>
+              <Row gap={space.xs} style={{ paddingHorizontal: space.xs }}>
                 <Ionicons
                   name={view.weightDelta < 0 ? "trending-down" : "trending-up"}
                   size={14}
@@ -308,13 +287,33 @@ export default function HomeScreen() {
                 </T>
               </Row>
             ) : null}
-          </Card>
+          </View>
+
+          {/* Level: derived from real sessions and visits. */}
+          {view?.progression ? (
+            <Card>
+              <Row style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+                <T variant="bodyStrong">
+                  Level {view.progression.levelIndex + 1} · {view.progression.levelName}
+                </T>
+                <T variant="small" tone="muted" style={{ fontVariant: ["tabular-nums"] }}>
+                  {view.progression.xp.toLocaleString()} XP
+                </T>
+              </Row>
+              <ProgressBar progress={view.progression.levelProgress} style={{ marginTop: space.md }} />
+              <T variant="caption" tone="faint" style={{ marginTop: space.sm }}>
+                {view.progression.xpToNext != null
+                  ? `${view.progression.xpToNext.toLocaleString()} XP to ${nextLevelName(view.progression.levelIndex)}. ${XP_SESSION} per workout, ${XP_VISIT} per visit.`
+                  : "Top level reached"}
+              </T>
+            </Card>
+          ) : null}
 
           {/* Daily missions: optional, derived, no nagging. */}
           {view?.missions.length ? (
             <Card>
-              <T variant="caption" tone="faint">
-                TODAY'S MISSIONS
+              <T variant="smallStrong" tone="muted">
+                Today's missions
               </T>
               <View style={{ marginTop: space.md, gap: space.md }}>
                 {view.missions.map((m) => (
@@ -341,8 +340,8 @@ export default function HomeScreen() {
           {/* Water: quick add, kept on-device. */}
           <Card>
             <Row style={{ justifyContent: "space-between" }}>
-              <T variant="caption" tone="faint">WATER TODAY</T>
-              <T variant="caption" tone="muted">
+              <T variant="smallStrong" tone="muted">Water today</T>
+              <T variant="small" tone="muted" style={{ fontVariant: ["tabular-nums"] }}>
                 {((view?.waterToday ?? 0) / 1000).toFixed(2)} / {((view?.waterGoal ?? 2000) / 1000).toFixed(1)} L
               </T>
             </Row>
@@ -356,6 +355,7 @@ export default function HomeScreen() {
                 variant="secondary"
                 compact
                 onPress={async () => {
+                  haptic.tap();
                   await addWater(250);
                   await state.refresh();
                 }}
@@ -371,52 +371,6 @@ export default function HomeScreen() {
             </Row>
           </Card>
 
-          {/* Today's training. */}
-          <SectionHeader
-            title="Today"
-            action={state.data?.plan ? "Open" : undefined}
-            onAction={() => router.push("/workout")}
-          />
-          {state.data?.plan ? (
-            <Card onPress={() => router.push("/workout")} accessibilityLabel="Open today's workout">
-              <Row style={{ justifyContent: "space-between" }}>
-                <View style={{ flex: 1, paddingRight: space.md }}>
-                  <T variant="bodyStrong" numberOfLines={1}>
-                    {state.data.plan.plan.name}
-                  </T>
-                  <T variant="small" tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>
-                    {view?.exerciseCount ?? 0} exercises
-                    {state.data.plan.plan.goal ? ` · ${state.data.plan.plan.goal}` : ""}
-                  </T>
-                </View>
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: radius.pill,
-                    backgroundColor: color.accentSoft,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons name="barbell-outline" size={19} color={color.accentText} />
-                </View>
-              </Row>
-              <Button
-                label="Start workout"
-                icon="play"
-                onPress={() => router.push("/workout")}
-                style={{ marginTop: space.lg }}
-              />
-            </Card>
-          ) : (
-            <EmptyState
-              icon="barbell-outline"
-              title="No plan assigned yet"
-              body="Your coach has not assigned a workout plan. It will appear here as soon as they do."
-            />
-          )}
-
           {/* Outdoor run: GPS tracking, saved as a real session. */}
           <Card onPress={() => router.push("/run")} accessibilityLabel="Start a tracked outdoor run">
             <Row style={{ justifyContent: "space-between" }}>
@@ -426,18 +380,7 @@ export default function HomeScreen() {
                   Track distance, time and pace with GPS
                 </T>
               </View>
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: radius.pill,
-                  backgroundColor: color.accentSoft,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="walk-outline" size={19} color={color.accentText} />
-              </View>
+              <Ionicons name="chevron-forward" size={18} color={color.textFaint} />
             </Row>
           </Card>
 
@@ -491,6 +434,19 @@ function nextLevelName(index: number) {
 }
 
 async function quickWater(ml: number, refresh: () => Promise<void>) {
+  haptic.tap();
   await addWater(ml);
   await refresh();
 }
+
+const s = StyleSheet.create({
+  // The brightest pane on Home: today's workout is the focal point.
+  today: {
+    ...glass.pane,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.24)",
+    padding: space.lg,
+    borderRadius: radius.lg,
+    borderCurve: "continuous",
+  },
+});

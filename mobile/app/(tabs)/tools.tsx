@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAsync } from "../../src/lib/useAsync";
 import { addWater, getMeasurements, getRecentSessions, getWaterLog } from "../../src/lib/data";
 import { useAuth } from "../../src/lib/auth";
+import { dayKey } from "../../src/lib/format";
 import {
   ACTIVITY_LEVELS,
   bmi,
@@ -18,7 +19,7 @@ import {
   type ActivityKey,
   type Sex,
 } from "../../src/lib/fitness";
-import { Button, Card, Chip, Row, Screen, SectionHeader, T } from "../../src/components/ui";
+import { BackButton, Button, Card, Chip, Row, Screen, SectionHeader, T } from "../../src/components/ui";
 import { color, radius, space, type } from "../../src/lib/theme";
 import { tabBarSpace } from "./_layout";
 
@@ -83,14 +84,15 @@ export default function ToolsScreen() {
   }, [runKm, runMin]);
 
   // Water: today's total against the 35 ml/kg target, +500 on training days.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = dayKey();
   const waterToday = state.data?.water?.[today] ?? 0;
   const trainedToday = (state.data?.sessions ?? []).some((s) => s.performed_on === today && s.completed_at);
   const waterGoal = waterTargetMl(latest?.weight_kg != null ? Number(latest.weight_kg) : null, trainedToday);
 
   return (
     <Screen contentStyle={{ paddingBottom: tabBarSpace(insets.bottom) }}>
-      <View style={{ paddingTop: space.md }}>
+      <View style={{ paddingTop: space.sm }}>
+        <BackButton label="Profile" />
         <T variant="h1">Tools</T>
         <T variant="small" tone="muted" style={{ marginTop: 2 }}>
           Published formulas, your numbers, nothing stored.
@@ -99,7 +101,7 @@ export default function ToolsScreen() {
 
       {/* Energy: BMR and TDEE from the member's own stats. */}
       <Card>
-        <T variant="caption" tone="faint">YOUR STATS</T>
+        <T variant="caption" tone="faint">Your stats</T>
         <Row gap={space.xs} style={{ marginTop: space.sm, flexWrap: "wrap" }}>
           {(["male", "female", "other"] as Sex[]).map((s) => (
             <Pressable
@@ -124,9 +126,9 @@ export default function ToolsScreen() {
           ))}
         </Row>
         <Row gap={space.sm} style={{ marginTop: space.md }}>
-          <Field label="WEIGHT (KG)" value={weight} onChangeText={setWeight} />
-          <Field label="HEIGHT (CM)" value={height} onChangeText={setHeight} />
-          <Field label="AGE" value={age} onChangeText={setAge} />
+          <Field label="Weight (kg)" value={weight} onChangeText={setWeight} />
+          <Field label="Height (cm)" value={height} onChangeText={setHeight} />
+          <Field label="Age" value={age} onChangeText={setAge} />
         </Row>
         <Row gap={space.xs} style={{ marginTop: space.md, flexWrap: "wrap" }}>
           {(Object.keys(ACTIVITY_LEVELS) as ActivityKey[]).map((k) => (
@@ -191,18 +193,18 @@ export default function ToolsScreen() {
       {/* Macros from TDEE. */}
       {calc ? (
         <Card>
-          <T variant="caption" tone="faint">MACROS AT TDEE</T>
+          <T variant="caption" tone="faint">Macros at TDEE</T>
           <Row gap={space.lg} style={{ marginTop: space.md }}>
             <View style={{ flex: 1 }}>
-              <T variant="caption" tone="faint">PROTEIN</T>
+              <T variant="caption" tone="faint">Protein</T>
               <T variant="bodyStrong">{calc.macros.protein_g} g</T>
             </View>
             <View style={{ flex: 1 }}>
-              <T variant="caption" tone="faint">CARBS</T>
+              <T variant="caption" tone="faint">Carbs</T>
               <T variant="bodyStrong">{calc.macros.carbs_g} g</T>
             </View>
             <View style={{ flex: 1 }}>
-              <T variant="caption" tone="faint">FAT</T>
+              <T variant="caption" tone="faint">Fat</T>
               <T variant="bodyStrong">{calc.macros.fat_g} g</T>
             </View>
           </Row>
@@ -216,12 +218,12 @@ export default function ToolsScreen() {
       <SectionHeader title="Strength" />
       <Card>
         <Row gap={space.sm}>
-          <Field label="WEIGHT (KG)" value={ormWeight} onChangeText={setOrmWeight} />
-          <Field label="REPS" value={ormReps} onChangeText={setOrmReps} />
+          <Field label="Weight (kg)" value={ormWeight} onChangeText={setOrmWeight} />
+          <Field label="Reps" value={ormReps} onChangeText={setOrmReps} />
         </Row>
         <Row style={{ marginTop: space.md, justifyContent: "space-between" }}>
           <View>
-            <T variant="caption" tone="faint">ESTIMATED 1RM</T>
+            <T variant="caption" tone="faint">Estimated 1RM</T>
             <T variant="h2">{orm != null ? `${Math.round(orm)} kg` : "—"}</T>
           </View>
           {Number(ormReps) > 12 ? <Chip label="High reps, rough estimate" tone="warning" /> : null}
@@ -235,11 +237,11 @@ export default function ToolsScreen() {
       <SectionHeader title="Running" />
       <Card>
         <Row gap={space.sm}>
-          <Field label="DISTANCE (KM)" value={runKm} onChangeText={setRunKm} />
-          <Field label="TIME (MIN)" value={runMin} onChangeText={setRunMin} />
+          <Field label="Distance (km)" value={runKm} onChangeText={setRunKm} />
+          <Field label="Time (min)" value={runMin} onChangeText={setRunMin} />
         </Row>
         <View style={{ marginTop: space.md }}>
-          <T variant="caption" tone="faint">PACE</T>
+          <T variant="caption" tone="faint">Pace</T>
           <T variant="h2">{formatPace(run)}</T>
         </View>
       </Card>
@@ -249,11 +251,11 @@ export default function ToolsScreen() {
       <Card>
         <Row style={{ justifyContent: "space-between" }}>
           <View>
-            <T variant="caption" tone="faint">TODAY</T>
+            <T variant="caption" tone="faint">Today</T>
             <T variant="h2">{(waterToday / 1000).toFixed(2)} L</T>
           </View>
           <View style={{ alignItems: "flex-end" }}>
-            <T variant="caption" tone="faint">GOAL</T>
+            <T variant="caption" tone="faint">Goal</T>
             <T variant="bodyStrong">{(waterGoal / 1000).toFixed(1)} L</T>
           </View>
         </Row>

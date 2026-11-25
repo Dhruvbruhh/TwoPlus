@@ -81,6 +81,7 @@ function Gate() {
       <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
       <Stack.Screen name="workout" options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
       <Stack.Screen name="run" options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="scan" options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
     </Stack>
   );
 }
